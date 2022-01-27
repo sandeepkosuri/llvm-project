@@ -12691,7 +12691,7 @@ private:
                             const FunctionProtoType *Proto, SourceLocation Loc);
 
   void CheckArgAlignment(SourceLocation Loc, NamedDecl *FDecl,
-                         StringRef ParamName, QualType ArgTy, QualType ParamTy);
+                         StringRef ParamName, QualType ArgTy, QualType ParamTy, const Expr* Arg = nullptr);
 
   void checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
                  const Expr *ThisArg, ArrayRef<const Expr *> Args,

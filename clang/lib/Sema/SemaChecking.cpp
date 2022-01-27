@@ -5207,7 +5207,37 @@ static void CheckNonNullArguments(Sema &S,
 /// calling functions defined in terms of the original type.
 void Sema::CheckArgAlignment(SourceLocation Loc, NamedDecl *FDecl,
                              StringRef ParamName, QualType ArgTy,
-                             QualType ParamTy) {
+                             QualType ParamTy, const Expr* Arg) {
+
+  // 16 byte ByVal alignment not due to a vector member is not honoured by XL
+  // on AIX. Emit a warning here that users are generating binary incompatible
+  // code to be safe.
+  // Here we try to get information about the alignment of the struct member
+  // argument passed to function.
+  if (Context.getTargetInfo().getTriple().isOSAIX()) {
+    if (Arg->IgnoreParens()) {
+      // Using AArg so as to not modify Arg for the rest of the function.
+      const Expr *AArg = Arg->IgnoreParens();
+      if (AArg->getStmtClass() == Stmt::ImplicitCastExprClass) {
+        const ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(AArg);
+        AArg = ICE->getSubExpr();
+        if (AArg->getStmtClass() == Stmt::MemberExprClass) {
+          const auto *ME = dyn_cast<MemberExpr>(AArg);
+          ValueDecl *MD = ME->getMemberDecl();
+          auto *FD = dyn_cast<FieldDecl>(MD);
+          if (FD) {
+            if (FD->hasAttr<AlignedAttr>()) {
+              auto *AA = FD->getAttr<AlignedAttr>();
+              unsigned Aligned = AA->getAlignment(Context);
+              // Divide by 8 to get the bytes instead of using bits.
+              if (Aligned / 8 >= 16)
+                Diag(Loc, diag::warn_not_xl_compatible) << FD;
+            }
+          }
+        }
+      }
+    }
+  }
 
   // If a function accepts a pointer or reference type
   if (!ParamTy->isPointerType() && !ParamTy->isReferenceType())
@@ -5314,7 +5344,7 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
         QualType ParamTy = Proto->getParamType(ArgIdx);
         QualType ArgTy = Arg->getType();
         CheckArgAlignment(Arg->getExprLoc(), FDecl, std::to_string(ArgIdx + 1),
-                          ArgTy, ParamTy);
+                          ArgTy, ParamTy, Arg);
       }
     }
   }
@@ -5352,7 +5382,7 @@ void Sema::CheckConstructorCall(FunctionDecl *FDecl, QualType ThisType,
 
   auto *Ctor = cast<CXXConstructorDecl>(FDecl);
   CheckArgAlignment(Loc, FDecl, "'this'", Context.getPointerType(ThisType),
-                    Context.getPointerType(Ctor->getThisObjectType()));
+                    Context.getPointerType(Ctor->getThisObjectType()), nullptr);
 
   checkCall(FDecl, Proto, /*ThisArg=*/nullptr, Args, /*IsMemberFunction=*/true,
             Loc, SourceRange(), CallType);
@@ -5396,7 +5426,7 @@ bool Sema::CheckFunctionCall(FunctionDecl *FDecl, CallExpr *TheCall,
         Context.getPointerType(cast<CXXMethodDecl>(FDecl)->getThisObjectType());
 
     CheckArgAlignment(TheCall->getRParenLoc(), FDecl, "'this'", ThisType,
-                      ThisTypeFromDecl);
+                      ThisTypeFromDecl, nullptr);
   }
 
   checkCall(FDecl, Proto, ImplicitThis, llvm::makeArrayRef(Args, NumArgs),
