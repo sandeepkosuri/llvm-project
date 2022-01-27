@@ -2268,7 +2268,8 @@ void OMPClausePrinter::VisitOMPNontemporalClause(OMPNontemporalClause *Node) {
 }
 
 void OMPClausePrinter::VisitOMPOrderClause(OMPOrderClause *Node) {
-  OS << "order(" << getOpenMPSimpleClauseTypeName(OMPC_order, Node->getKind())
+  OS << "order(" << getOpenMPSimpleClauseTypeName(OMPC_order, Node->getModifier());
+  OS << ": " << getOpenMPSimpleClauseTypeName(OMPC_order, Node->getKind())
      << ")";
 }
 

@@ -10469,6 +10469,8 @@ def err_omp_prohibited_region_simd : Error<
   "OpenMP constructs may not be nested inside a simd region%select{| except for ordered simd, simd, scan, or atomic directive}0">;
 def err_omp_prohibited_region_atomic : Error<
   "OpenMP constructs may not be nested inside an atomic region">;
+def err_omp_prohibited_region_order : Error<
+  "OpenMP constructs allowed in a region associated to a directive with 'order' clause are : loop, simd, parallel and combined constructs for which the first construct is a parallel construct">;
 def err_omp_prohibited_region_critical_same_name : Error<
   "cannot nest 'critical' regions having the same name %0">;
 def note_omp_previous_critical_region : Note<

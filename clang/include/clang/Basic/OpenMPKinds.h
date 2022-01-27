@@ -153,6 +153,14 @@ enum OpenMPOrderClauseKind {
   OMPC_ORDER_unknown,
 };
 
+/// OpenMP modifiers for 'order' clause.
+enum OpenMPOrderClauseModifier {
+  OMPC_ORDER_MODIFIER_unknown = OMPC_ORDER_unknown,
+#define OPENMP_ORDER_MODIFIER(Name) OMPC_ORDER_MODIFIER_##Name,
+#include "clang/Basic/OpenMPKinds.def"
+  OMPC_ORDER_MODIFIER_last
+};
+
 /// Scheduling data for loop-based OpenMP directives.
 struct OpenMPScheduleTy final {
   OpenMPScheduleClauseKind Schedule = OMPC_SCHEDULE_unknown;
@@ -298,6 +306,13 @@ bool isOpenMPLoopTransformationDirective(OpenMPDirectiveKind DKind);
 void getOpenMPCaptureRegions(
     llvm::SmallVectorImpl<OpenMPDirectiveKind> &CaptureRegions,
     OpenMPDirectiveKind DKind);
+
+/// Checks if the specified directive is allowed under a construct
+/// which has order clause.
+/// \param DKind Specified directive.
+/// \return true - if it's allowed
+/// otherwise - false.
+bool canExistInOrderRegion(OpenMPDirectiveKind DKind);
 }
 
 #endif

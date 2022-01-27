@@ -11155,11 +11155,10 @@ public:
                                        SourceLocation LParenLoc,
                                        SourceLocation EndLoc);
   /// Called on well-formed 'order' clause.
-  OMPClause *ActOnOpenMPOrderClause(OpenMPOrderClauseKind Kind,
-                                    SourceLocation KindLoc,
-                                    SourceLocation StartLoc,
-                                    SourceLocation LParenLoc,
-                                    SourceLocation EndLoc);
+  OMPClause *ActOnOpenMPOrderClause(
+      OpenMPOrderClauseModifier Modifier, OpenMPOrderClauseKind Kind,
+      SourceLocation StartLoc, SourceLocation LParenLoc, SourceLocation MLoc,
+      SourceLocation KindLoc, SourceLocation EndLoc);
   /// Called on well-formed 'update' clause.
   OMPClause *ActOnOpenMPUpdateClause(OpenMPDependClauseKind Kind,
                                      SourceLocation KindLoc,

@@ -3175,7 +3175,6 @@ OMPClause *Parser::ParseOpenMPClause(OpenMPDirectiveKind DKind,
   case OMPC_default:
   case OMPC_proc_bind:
   case OMPC_atomic_default_mem_order:
-  case OMPC_order:
   case OMPC_bind:
     // OpenMP [2.14.3.1, Restrictions]
     //  Only a single default clause may be specified on a parallel, task or
@@ -3187,7 +3186,7 @@ OMPClause *Parser::ParseOpenMPClause(OpenMPDirectiveKind DKind,
     //  on the directive
     // OpenMP 5.1, 2.11.7 loop Construct, Restrictions.
     // At most one bind clause can appear on a loop directive.
-    if (!FirstClause && CKind != OMPC_order) {
+    if (!FirstClause) {
       Diag(Tok, diag::err_omp_more_one_clause)
           << getOpenMPDirectiveName(DKind) << getOpenMPClauseName(CKind) << 0;
       ErrorFound = true;
@@ -3199,10 +3198,13 @@ OMPClause *Parser::ParseOpenMPClause(OpenMPDirectiveKind DKind,
   case OMPC_schedule:
   case OMPC_dist_schedule:
   case OMPC_defaultmap:
+  case OMPC_order:
     // OpenMP [2.7.1, Restrictions, p. 3]
     //  Only one schedule clause can appear on a loop directive.
     // OpenMP 4.5 [2.10.4, Restrictions, p. 106]
     //  At most one defaultmap clause can appear on the directive.
+    // OpenMP 5.1 [2.11.3, order clause, Restrictions]
+    //  At most one order clause may appear on a construct.
     // OpenMP 5.0 [2.12.5, target construct, Restrictions]
     //  At most one device clause can appear on the directive.
     if ((getLangOpts().OpenMP < 50 || CKind != OMPC_defaultmap) &&
@@ -3751,6 +3753,38 @@ OMPClause *Parser::ParseOpenMPSingleExprWithArgClause(OpenMPDirectiveKind DKind,
         ConsumeAnyToken();
     } else {
       Arg.push_back(OMPC_DEFAULTMAP_unknown);
+      KLoc.push_back(SourceLocation());
+    }
+  } else if (Kind == OMPC_order) {
+    // Get an order modifier
+    if (Tok.is(tok::identifier) && PP.LookAhead(0).is(tok::colon)) {
+      unsigned Modifier = getOpenMPSimpleClauseType(
+          Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok), getLangOpts());
+// have to add error checking code
+      Arg.push_back(Modifier);
+      KLoc.push_back(Tok.getLocation());
+      ConsumeAnyToken();
+      assert(Tok.is(tok::colon) && "Expected colon.");
+      // Parse ':'
+      ConsumeAnyToken();
+    }
+    // using reproducible modifier as default
+    if (Arg.size() == 0) {
+      Arg.push_back(OMPC_ORDER_MODIFIER_reproducible);
+      KLoc.push_back(Tok.getLocation());
+    }
+    // Parse Order kind
+    if (Tok.is(tok::identifier)) {
+      Arg.push_back(getOpenMPSimpleClauseType(
+          Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok), getLangOpts()));
+      KLoc.push_back(Tok.getLocation());
+      if (Tok.isNot(tok::r_paren) && Tok.isNot(tok::comma) &&
+          Tok.isNot(tok::annot_pragma_openmp_end))
+        ConsumeAnyToken();
+    } else {
+      Arg.push_back(OMPC_ORDER_MODIFIER_unknown);
+      Arg.push_back(OMPC_ORDER_unknown);
+      KLoc.push_back(SourceLocation());
       KLoc.push_back(SourceLocation());
     }
   } else if (Kind == OMPC_device) {
