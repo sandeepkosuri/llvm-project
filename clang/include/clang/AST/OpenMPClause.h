@@ -7532,8 +7532,8 @@ class OMPOrderClause final : public OMPClause {
   /// Start location of the kind in source code.
   SourceLocation KindKwLoc;
 
-  /// A modifier for order clause (by default 'reproducible')
-  OpenMPOrderClauseModifier Modifier = OMPC_ORDER_MODIFIER_reproducible;
+  /// A modifier for order clause
+  OpenMPOrderClauseModifier Modifier = OMPC_ORDER_MODIFIER_unknown;
 
   /// Start location of the modifier in source code.
   SourceLocation ModifierKwLoc;

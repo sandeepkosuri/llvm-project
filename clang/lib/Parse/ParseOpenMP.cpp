@@ -3756,37 +3756,33 @@ OMPClause *Parser::ParseOpenMPSingleExprWithArgClause(OpenMPDirectiveKind DKind,
       KLoc.push_back(SourceLocation());
     }
   } else if (Kind == OMPC_order) {
-    // Get an order modifier
-    if (Tok.is(tok::identifier) && PP.LookAhead(0).is(tok::colon)) {
-      unsigned Modifier = getOpenMPSimpleClauseType(
-          Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok), getLangOpts());
-// have to add error checking code
-      Arg.push_back(Modifier);
-      KLoc.push_back(Tok.getLocation());
-      ConsumeAnyToken();
-      assert(Tok.is(tok::colon) && "Expected colon.");
-      // Parse ':'
-      ConsumeAnyToken();
-    }
-    // using reproducible modifier as default
-    if (Arg.size() == 0) {
-      Arg.push_back(OMPC_ORDER_MODIFIER_reproducible);
-      KLoc.push_back(Tok.getLocation());
-    }
-    // Parse Order kind
-    if (Tok.is(tok::identifier)) {
-      Arg.push_back(getOpenMPSimpleClauseType(
-          Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok), getLangOpts()));
-      KLoc.push_back(Tok.getLocation());
+    enum { Modifier, OrderKind, NumberOfElements };
+    Arg.resize(NumberOfElements);
+    KLoc.resize(NumberOfElements);
+    Arg[Modifier] = OMPC_ORDER_MODIFIER_unknown;
+    Arg[OrderKind] = OMPC_ORDER_unknown;
+    unsigned KindModifier = getOpenMPSimpleClauseType(
+        Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok), getLangOpts());
+    if (KindModifier > OMPC_ORDER_unknown) {
+      // Parse 'modifier'
+      Arg[Modifier] = KindModifier;
+      KLoc[Modifier] = Tok.getLocation();
       if (Tok.isNot(tok::r_paren) && Tok.isNot(tok::comma) &&
           Tok.isNot(tok::annot_pragma_openmp_end))
         ConsumeAnyToken();
-    } else {
-      Arg.push_back(OMPC_ORDER_MODIFIER_unknown);
-      Arg.push_back(OMPC_ORDER_unknown);
-      KLoc.push_back(SourceLocation());
-      KLoc.push_back(SourceLocation());
+      // Parse ':'
+      if (Tok.is(tok::colon))
+        ConsumeAnyToken();
+      else
+        Diag(Tok, diag::warn_pragma_expected_colon) << "order modifier";
+      KindModifier = getOpenMPSimpleClauseType(
+          Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok), getLangOpts());
     }
+    Arg[OrderKind] = KindModifier;
+    KLoc[OrderKind] = Tok.getLocation();
+    if (Tok.isNot(tok::r_paren) && Tok.isNot(tok::comma) &&
+        Tok.isNot(tok::annot_pragma_openmp_end))
+      ConsumeAnyToken();
   } else if (Kind == OMPC_device) {
     // Only target executable directives support extended device construct.
     if (isOpenMPTargetExecutionDirective(DKind) && getLangOpts().OpenMP >= 50 &&

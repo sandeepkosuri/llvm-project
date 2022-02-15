@@ -631,9 +631,8 @@ bool clang::isOpenMPLoopTransformationDirective(OpenMPDirectiveKind DKind) {
   return DKind == OMPD_tile || DKind == OMPD_unroll;
 }
 
-bool clang::canExistInOrderRegion(OpenMPDirectiveKind DKind) {
-  return DKind == OMPD_loop || DKind == OMPD_parallel || DKind == OMPD_simd ||
-         DKind == OMPD_parallel_do || DKind == OMPD_parallel_do_simd ||
+bool clang::isOpenMPCombinedParallelADirective(OpenMPDirectiveKind DKind) {
+  return DKind == OMPD_parallel_do || DKind == OMPD_parallel_do_simd ||
          DKind == OMPD_parallel_for || DKind == OMPD_parallel_for_simd ||
          DKind == OMPD_parallel_master ||
          DKind == OMPD_parallel_master_taskloop ||

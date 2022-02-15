@@ -171,7 +171,7 @@ private:
     /// 'ordered' clause, the second one is true if the regions has 'ordered'
     /// clause, false otherwise.
     llvm::Optional<std::pair<const Expr *, OMPOrderedClause *>> OrderedRegion;
-    bool OrderRegion = false;
+    bool RegionHasOrderConcurrent = false;
     unsigned AssociatedLoops = 1;
     bool HasMutipleLoops = false;
     const Decl *PossiblyLoopCounter = nullptr;
@@ -841,21 +841,21 @@ public:
     return std::make_pair(nullptr, nullptr);
   }
   /// Marks current region as order (it has an 'order' clause).
-  void setOrderRegion(bool IsOrder) {
-    getTopOfStack().OrderRegion = IsOrder;
+  void setRegionHasOrderConcurrent(bool HasOrderConcurrent) {
+    getTopOfStack().RegionHasOrderConcurrent = HasOrderConcurrent;
   }
   /// Returns true, if region is order (has associated 'order' clause),
   /// false - otherwise.
-  bool isOrderRegion() const {
+  bool HasOrderConcurrent() const {
     if (const SharingMapTy *Top = getTopOfStackOrNull())
-      return Top->OrderRegion;
+      return Top->RegionHasOrderConcurrent;
     return false;
   }
   /// Returns true, if parent region is order (has associated
   /// 'order' clause), false - otherwise.
-  bool isParentOrderRegion() const {
+  bool ParentHasOrderConcurrent() const {
     if (const SharingMapTy *Parent = getSecondOnStackOrNull())
-      return Parent->OrderRegion;
+      return Parent->RegionHasOrderConcurrent;
     return false;
   }
   /// Marks current region as nowait (it has a 'nowait' clause).
@@ -4734,7 +4734,9 @@ static bool checkNestingOfRegions(Sema &SemaRef, const DSAStackTy *Stack,
       ShouldBeInTeamsRegion,
       ShouldBeInLoopSimdRegion,
     } Recommend = NoRecommend;
-    if (Stack->isParentOrderRegion() && !canExistInOrderRegion(CurrentRegion)){
+    if (SemaRef.LangOpts.OpenMP >= 51 && Stack->ParentHasOrderConcurrent() &&
+        CurrentRegion != OMPD_simd && CurrentRegion != OMPD_loop &&
+        CurrentRegion != OMPD_parallel && !isOpenMPCombinedParallelADirective(CurrentRegion)){
       SemaRef.Diag(StartLoc, diag::err_omp_prohibited_region_order);
       return true;
     }
@@ -14942,19 +14944,25 @@ OMPClause *Sema::ActOnOpenMPOrderClause(
     OpenMPOrderClauseModifier Modifier, OpenMPOrderClauseKind Kind,
     SourceLocation StartLoc, SourceLocation LParenLoc, SourceLocation MLoc,
     SourceLocation KindLoc, SourceLocation EndLoc) {
-  if (Modifier == OMPC_ORDER_MODIFIER_unknown) {
-    Modifier = OMPC_ORDER_MODIFIER_reproducible;
+  if (Modifier == OMPC_ORDER_MODIFIER_unknown && MLoc.isValid()) {
+    Diag(MLoc, diag::err_omp_unexpected_clause_value)
+        << getListOfPossibleValues(OMPC_order,
+                                   /*First=*/OMPC_ORDER_MODIFIER_unknown + 1,
+                                   /*Last=*/OMPC_ORDER_MODIFIER_last)
+        << getOpenMPClauseName(OMPC_order);
   }
   if (Kind != OMPC_ORDER_concurrent) {
     static_assert(OMPC_ORDER_unknown > 0,
                   "OMPC_ORDER_unknown not greater than 0");
     Diag(KindLoc, diag::err_omp_unexpected_clause_value)
-        << getListOfPossibleValues(OMPC_order, /*First=*/0,
+        << getListOfPossibleValues(OMPC_order,
+                                   /*First=*/0,
                                    /*Last=*/OMPC_ORDER_unknown)
         << getOpenMPClauseName(OMPC_order);
     return nullptr;
   }
-  DSAStack->setOrderRegion(/*IsOrdered=*/true);
+  else
+    DSAStack->setRegionHasOrderConcurrent(/*HasOrderConcurrent=*/true);
   return new (Context)
       OMPOrderClause(Kind, KindLoc, StartLoc, LParenLoc, EndLoc, Modifier, MLoc);
 }

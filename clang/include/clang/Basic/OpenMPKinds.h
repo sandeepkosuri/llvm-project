@@ -312,7 +312,7 @@ void getOpenMPCaptureRegions(
 /// \param DKind Specified directive.
 /// \return true - if it's allowed
 /// otherwise - false.
-bool canExistInOrderRegion(OpenMPDirectiveKind DKind);
+bool isOpenMPCombinedParallelADirective(OpenMPDirectiveKind DKind);
 }
 
 #endif
