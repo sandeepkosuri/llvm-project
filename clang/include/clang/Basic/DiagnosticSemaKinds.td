@@ -10278,6 +10278,8 @@ def err_omp_reduction_incomplete_type : Error<
   "a reduction list item with incomplete type %0">;
 def err_omp_unexpected_clause_value : Error<
   "expected %0 in OpenMP clause '%1'">;
+def err_omp_unexpected_call_to_omp_runtime_api : Error<
+  "Calls to OpenMP runtime API are not allowed within a region that corresponds to a construct with an order clause that specifies concurrent">;
 def err_omp_expected_var_name_member_expr : Error<
   "expected variable name%select{| or data member of current class}0">;
 def err_omp_expected_var_name_member_expr_or_array_item : Error<
