@@ -4736,7 +4736,8 @@ static bool checkNestingOfRegions(Sema &SemaRef, const DSAStackTy *Stack,
     } Recommend = NoRecommend;
     if (SemaRef.LangOpts.OpenMP >= 51 && Stack->ParentHasOrderConcurrent() &&
         CurrentRegion != OMPD_simd && CurrentRegion != OMPD_loop &&
-        CurrentRegion != OMPD_parallel && !isOpenMPCombinedParallelADirective(CurrentRegion)){
+        CurrentRegion != OMPD_parallel &&
+        !isOpenMPCombinedParallelADirective(CurrentRegion)) {
       SemaRef.Diag(StartLoc, diag::err_omp_prohibited_region_order);
       return true;
     }
@@ -6895,18 +6896,11 @@ ExprResult Sema::ActOnOpenMPCall(ExprResult Call, Scope *Scope,
   if (this->LangOpts.OpenMP >= 51 && CalleeFnDecl->getIdentifier()) {
     if (CalleeFnDecl->getName().startswith_insensitive(StringRef("omp_"))) {
       // for checking calls recursively inside Order region
-      while(Scope) {
+      while (Scope) {
         if (Scope->isOpenMPOrderClauseScope())
           Diag(LParenLoc, diag::err_omp_unexpected_call_to_omp_runtime_api);
         Scope = Scope->getParent();
       }
-
-      // for checking only one level
-      /*
-      if (DSAStack->HasOrderConcurrent()){
-        Diag(LParenLoc, diag::err_omp_unexpected_call_to_omp_runtime_api);
-      }
-      */
     }
   }
 
@@ -14962,7 +14956,8 @@ OMPClause *Sema::ActOnOpenMPOrderClause(
     OpenMPOrderClauseModifier Modifier, OpenMPOrderClauseKind Kind,
     SourceLocation StartLoc, SourceLocation LParenLoc, SourceLocation MLoc,
     SourceLocation KindLoc, SourceLocation EndLoc) {
-  if (Modifier == OMPC_ORDER_MODIFIER_unknown && MLoc.isValid()) {
+  if (this->LangOpts.OpenMP >= 51 && Modifier == OMPC_ORDER_MODIFIER_unknown &&
+      MLoc.isValid()) {
     Diag(MLoc, diag::err_omp_unexpected_clause_value)
         << getListOfPossibleValues(OMPC_order,
                                    /*First=*/OMPC_ORDER_MODIFIER_unknown + 1,
@@ -14978,14 +14973,13 @@ OMPClause *Sema::ActOnOpenMPOrderClause(
                                    /*Last=*/OMPC_ORDER_unknown)
         << getOpenMPClauseName(OMPC_order);
     return nullptr;
-  }
-  else if (this->LangOpts.OpenMP >= 51){
+  } else if (this->LangOpts.OpenMP >= 51) {
     DSAStack->setRegionHasOrderConcurrent(/*HasOrderConcurrent=*/true);
     DSAStack->getCurScope()->setFlags(Scope::OpenMPOrderClauseScope);
   }
 
-  return new (Context)
-      OMPOrderClause(Kind, KindLoc, StartLoc, LParenLoc, EndLoc, Modifier, MLoc);
+  return new (Context) OMPOrderClause(Kind, KindLoc, StartLoc, LParenLoc,
+                                      EndLoc, Modifier, MLoc);
 }
 
 OMPClause *Sema::ActOnOpenMPUpdateClause(OpenMPDependClauseKind Kind,
@@ -15098,9 +15092,8 @@ OMPClause *Sema::ActOnOpenMPSingleExprWithArgClause(
     enum { OrderModifier, OrderKind };
     Res = ActOnOpenMPOrderClause(
         static_cast<OpenMPOrderClauseModifier>(Argument[OrderModifier]),
-        static_cast<OpenMPOrderClauseKind>(Argument[OrderKind]),
-        StartLoc, LParenLoc, ArgumentLoc[OrderModifier], ArgumentLoc[OrderKind],
-        EndLoc);
+        static_cast<OpenMPOrderClauseKind>(Argument[OrderKind]), StartLoc,
+        LParenLoc, ArgumentLoc[OrderModifier], ArgumentLoc[OrderKind], EndLoc);
     break;
   case OMPC_device:
     assert(Argument.size() == 1 && ArgumentLoc.size() == 1);

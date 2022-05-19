@@ -2180,10 +2180,10 @@ public:
   ///
   /// By default, performs semantic analysis to build the new OpenMP clause.
   /// Subclasses may override this routine to provide different behavior.
-  OMPClause *RebuildOMPOrderClause(OpenMPOrderClauseKind Kind, SourceLocation KindKwLoc,
-                                   SourceLocation StartLoc, SourceLocation LParenLoc,
-                                   SourceLocation EndLoc, OpenMPOrderClauseModifier Modifier,
-                                   SourceLocation ModifierKwLoc) {
+  OMPClause *RebuildOMPOrderClause(
+      OpenMPOrderClauseKind Kind, SourceLocation KindKwLoc,
+      SourceLocation StartLoc, SourceLocation LParenLoc, SourceLocation EndLoc,
+      OpenMPOrderClauseModifier Modifier, SourceLocation ModifierKwLoc) {
     return getSema().ActOnOpenMPOrderClause(Modifier, Kind, StartLoc, LParenLoc,
                                             ModifierKwLoc, KindKwLoc, EndLoc);
   }
@@ -10310,10 +10310,9 @@ TreeTransform<Derived>::TransformOMPAffinityClause(OMPAffinityClause *C) {
 
 template <typename Derived>
 OMPClause *TreeTransform<Derived>::TransformOMPOrderClause(OMPOrderClause *C) {
-  return getDerived().RebuildOMPOrderClause(C->getKind(), C->getKindKwLoc(),
-                                            C->getBeginLoc(), C->getLParenLoc(),
-                                            C->getEndLoc(), C->getModifier(),
-                                            C->getModifierKwLoc());
+  return getDerived().RebuildOMPOrderClause(
+      C->getKind(), C->getKindKwLoc(), C->getBeginLoc(), C->getLParenLoc(),
+      C->getEndLoc(), C->getModifier(), C->getModifierKwLoc());
 }
 
 template <typename Derived>

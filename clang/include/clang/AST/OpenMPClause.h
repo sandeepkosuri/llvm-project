@@ -7526,7 +7526,7 @@ class OMPOrderClause final : public OMPClause {
   /// Location of '('.
   SourceLocation LParenLoc;
 
-  /// A kind of the 'default' clause.
+  /// A kind of the 'order' clause.
   OpenMPOrderClauseKind Kind = OMPC_ORDER_unknown;
 
   /// Start location of the kind in source code.
@@ -7573,7 +7573,8 @@ public:
                  SourceLocation EndLoc, OpenMPOrderClauseModifier M,
                  SourceLocation MLoc)
       : OMPClause(llvm::omp::OMPC_order, StartLoc, EndLoc),
-        LParenLoc(LParenLoc), Kind(A), KindKwLoc(ALoc), Modifier(M), ModifierKwLoc(MLoc) {}
+        LParenLoc(LParenLoc), Kind(A), KindKwLoc(ALoc), Modifier(M),
+        ModifierKwLoc(MLoc) {}
 
   /// Build an empty clause.
   OMPOrderClause()

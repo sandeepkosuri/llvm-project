@@ -637,8 +637,7 @@ bool clang::isOpenMPCombinedParallelADirective(OpenMPDirectiveKind DKind) {
          DKind == OMPD_parallel_master ||
          DKind == OMPD_parallel_master_taskloop ||
          DKind == OMPD_parallel_master_taskloop_simd ||
-         DKind == OMPD_parallel_workshare ||
-         DKind == OMPD_parallel_sections;
+         DKind == OMPD_parallel_workshare || DKind == OMPD_parallel_sections;
 }
 
 void clang::getOpenMPCaptureRegions(
