@@ -3208,6 +3208,7 @@ OMPClause *Parser::ParseOpenMPClause(OpenMPDirectiveKind DKind,
     // OpenMP 5.0 [2.12.5, target construct, Restrictions]
     //  At most one device clause can appear on the directive.
     if ((getLangOpts().OpenMP < 50 || CKind != OMPC_defaultmap) &&
+        (CKind != OMPC_order || getLangOpts().OpenMP >= 51) &&
         !FirstClause) {
       Diag(Tok, diag::err_omp_more_one_clause)
           << getOpenMPDirectiveName(DKind) << getOpenMPClauseName(CKind) << 0;

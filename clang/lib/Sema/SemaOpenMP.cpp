@@ -14956,28 +14956,33 @@ OMPClause *Sema::ActOnOpenMPOrderClause(
     OpenMPOrderClauseModifier Modifier, OpenMPOrderClauseKind Kind,
     SourceLocation StartLoc, SourceLocation LParenLoc, SourceLocation MLoc,
     SourceLocation KindLoc, SourceLocation EndLoc) {
-  if (this->LangOpts.OpenMP >= 51 && Modifier == OMPC_ORDER_MODIFIER_unknown &&
-      MLoc.isValid()) {
-    Diag(MLoc, diag::err_omp_unexpected_clause_value)
-        << getListOfPossibleValues(OMPC_order,
-                                   /*First=*/OMPC_ORDER_MODIFIER_unknown + 1,
-                                   /*Last=*/OMPC_ORDER_MODIFIER_last)
-        << getOpenMPClauseName(OMPC_order);
-  }
-  if (Kind != OMPC_ORDER_concurrent) {
+  if (Kind != OMPC_ORDER_concurrent ||
+      (this->LangOpts.OpenMP < 51 && MLoc.isValid())) {
+    // Kind should be concurrent,
+    // Modifiers introduced in OpenMP 5.1
     static_assert(OMPC_ORDER_unknown > 0,
                   "OMPC_ORDER_unknown not greater than 0");
+
     Diag(KindLoc, diag::err_omp_unexpected_clause_value)
         << getListOfPossibleValues(OMPC_order,
                                    /*First=*/0,
                                    /*Last=*/OMPC_ORDER_unknown)
         << getOpenMPClauseName(OMPC_order);
-    return nullptr;
-  } else if (this->LangOpts.OpenMP >= 51) {
-    DSAStack->setRegionHasOrderConcurrent(/*HasOrderConcurrent=*/true);
-    DSAStack->getCurScope()->setFlags(Scope::OpenMPOrderClauseScope);
-  }
 
+    return nullptr;
+  }
+  if (this->LangOpts.OpenMP >= 51) {
+    if (Modifier == OMPC_ORDER_MODIFIER_unknown && MLoc.isValid()) {
+      Diag(MLoc, diag::err_omp_unexpected_clause_value)
+          << getListOfPossibleValues(OMPC_order,
+                                     /*First=*/OMPC_ORDER_MODIFIER_unknown + 1,
+                                     /*Last=*/OMPC_ORDER_MODIFIER_last)
+          << getOpenMPClauseName(OMPC_order);
+    } else {
+      DSAStack->setRegionHasOrderConcurrent(/*HasOrderConcurrent=*/true);
+      DSAStack->getCurScope()->setFlags(Scope::OpenMPOrderClauseScope);
+    }
+  }
   return new (Context) OMPOrderClause(Kind, KindLoc, StartLoc, LParenLoc,
                                       EndLoc, Modifier, MLoc);
 }
