@@ -14980,7 +14980,8 @@ OMPClause *Sema::ActOnOpenMPOrderClause(
           << getOpenMPClauseName(OMPC_order);
     } else {
       DSAStack->setRegionHasOrderConcurrent(/*HasOrderConcurrent=*/true);
-      DSAStack->getCurScope()->setFlags(Scope::OpenMPOrderClauseScope);
+      if (DSAStack->getCurScope())
+        DSAStack->getCurScope()->setFlags(Scope::OpenMPOrderClauseScope);
     }
   }
   return new (Context) OMPOrderClause(Kind, KindLoc, StartLoc, LParenLoc,

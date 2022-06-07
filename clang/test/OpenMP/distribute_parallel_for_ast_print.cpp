@@ -175,9 +175,9 @@ int main(int argc, char **argv) {
 #else
 #pragma omp distribute parallel for schedule(guided, argc) default(none) copyin(g) dist_schedule(static, a) private(a) shared(argc)
 #endif // OMP5
-  // OMP45: #pragma omp distribute parallel for schedule(guided, argc) default(none) copyin(g) dist_schedule(static, a) private(a) shared(argc)
-  // OMP50: #pragma omp distribute parallel for schedule(guided, argc) default(none) copyin(g) dist_schedule(static, a) private(a) shared(argc) order(concurrent) reduction(task, +: c)
   // OMP51: #pragma omp distribute parallel for schedule(guided, argc) default(none) copyin(g) dist_schedule(static, a) private(a) shared(argc) order(reproducible: concurrent) reduction(task, +: c)
+  // OMP50: #pragma omp distribute parallel for schedule(guided, argc) default(none) copyin(g) dist_schedule(static, a) private(a) shared(argc) order(concurrent) reduction(task, +: c)
+  // OMP45: #pragma omp distribute parallel for schedule(guided, argc) default(none) copyin(g) dist_schedule(static, a) private(a) shared(argc)
   for (int i = 0; i < 2; ++i)
     a = 2;
 // CHECK-NEXT: for (int i = 0; i < 2; ++i)
