@@ -10279,7 +10279,7 @@ def err_omp_reduction_incomplete_type : Error<
 def err_omp_unexpected_clause_value : Error<
   "expected %0 in OpenMP clause '%1'">;
 def err_omp_unexpected_call_to_omp_runtime_api : Error<
-  "Calls to OpenMP runtime API are not allowed within a region that corresponds to a construct with an order clause that specifies concurrent">;
+  "calls to OpenMP runtime API are not allowed within a region that corresponds to a construct with an order clause that specifies concurrent">;
 def err_omp_expected_var_name_member_expr : Error<
   "expected variable name%select{| or data member of current class}0">;
 def err_omp_expected_var_name_member_expr_or_array_item : Error<
@@ -10472,7 +10472,7 @@ def err_omp_prohibited_region_simd : Error<
 def err_omp_prohibited_region_atomic : Error<
   "OpenMP constructs may not be nested inside an atomic region">;
 def err_omp_prohibited_region_order : Error<
-  "OpenMP constructs allowed in a region associated to a directive with 'order' clause are : loop, simd, parallel and combined constructs for which the first construct is a parallel construct">;
+  "construct %0 not allowed in a region associated with a directive with 'order' clause">;
 def err_omp_prohibited_region_critical_same_name : Error<
   "cannot nest 'critical' regions having the same name %0">;
 def note_omp_previous_critical_region : Note<

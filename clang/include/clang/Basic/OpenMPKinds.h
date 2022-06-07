@@ -307,10 +307,10 @@ void getOpenMPCaptureRegions(
     llvm::SmallVectorImpl<OpenMPDirectiveKind> &CaptureRegions,
     OpenMPDirectiveKind DKind);
 
-/// Checks if the specified directive is allowed under a construct
-/// which has order clause.
+/// Checks if the specified directive is a combined construct for which
+/// the first construct is a parallel construct.
 /// \param DKind Specified directive.
-/// \return true - if it's allowed
+/// \return true - if the above condition is met for this directive
 /// otherwise - false.
 bool isOpenMPCombinedParallelADirective(OpenMPDirectiveKind DKind);
 }

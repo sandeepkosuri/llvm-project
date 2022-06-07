@@ -840,7 +840,7 @@ public:
         return Parent->OrderedRegion.getValue();
     return std::make_pair(nullptr, nullptr);
   }
-  /// Marks current region as order (it has an 'order' clause).
+  /// Marks current region as having an 'order' clause.
   void setRegionHasOrderConcurrent(bool HasOrderConcurrent) {
     getTopOfStack().RegionHasOrderConcurrent = HasOrderConcurrent;
   }
@@ -6893,14 +6893,13 @@ ExprResult Sema::ActOnOpenMPCall(ExprResult Call, Scope *Scope,
   if (!CalleeFnDecl)
     return Call;
 
-  if (this->LangOpts.OpenMP >= 51 && CalleeFnDecl->getIdentifier()) {
-    if (CalleeFnDecl->getName().startswith_insensitive(StringRef("omp_"))) {
-      // for checking calls recursively inside Order region
-      while (Scope) {
-        if (Scope->isOpenMPOrderClauseScope())
-          Diag(LParenLoc, diag::err_omp_unexpected_call_to_omp_runtime_api);
-        Scope = Scope->getParent();
-      }
+  if (this->LangOpts.OpenMP >= 51 && CalleeFnDecl->getIdentifier() &&
+      CalleeFnDecl->getName().startswith_insensitive(StringRef("omp_"))) {
+    // checking for any calls recursively inside an Order region
+    while (Scope) {
+      if (Scope->isOpenMPOrderClauseScope())
+        Diag(LParenLoc, diag::err_omp_unexpected_call_to_omp_runtime_api);
+      Scope = Scope->getParent();
     }
   }
 
