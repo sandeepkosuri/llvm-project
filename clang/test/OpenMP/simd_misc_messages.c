@@ -22,7 +22,7 @@ void xxx(int argc) {
 // expected-error@+1 {{unexpected OpenMP directive '#pragma omp simd'}}
 #pragma omp simd safelen(4)
 
-void test_no_clause() {
+void test_no_clause(void) {
   int i;
 #pragma omp simd
   for (i = 0; i < 16; ++i)
@@ -33,7 +33,7 @@ void test_no_clause() {
   ++i;
 }
 
-void test_branch_protected_scope() {
+void test_branch_protected_scope(void) {
   int i = 0;
 L1:
   ++i;
@@ -60,7 +60,7 @@ L1:
     goto L1;
 }
 
-void test_invalid_clause() {
+void test_invalid_clause(void) {
   int i;
 // expected-warning@+1 {{extra tokens at the end of '#pragma omp simd' are ignored}}
 #pragma omp simd foo bar
@@ -68,7 +68,7 @@ void test_invalid_clause() {
     ;
 }
 
-void test_non_identifiers() {
+void test_non_identifiers(void) {
   int i, x;
 
 // expected-warning@+1 {{extra tokens at the end of '#pragma omp simd' are ignored}}
@@ -92,8 +92,8 @@ void test_non_identifiers() {
     ;
 }
 
-extern int foo();
-void test_safelen() {
+extern int foo(void);
+void test_safelen(void) {
   int i;
 // expected-error@+1 {{expected '('}}
 #pragma omp simd safelen
@@ -179,7 +179,7 @@ void test_safelen() {
     ;
 }
 
-void test_simdlen() {
+void test_simdlen(void) {
   int i;
 // expected-error@+1 {{expected '('}}
 #pragma omp simd simdlen
@@ -264,7 +264,7 @@ void test_simdlen() {
     ;
 }
 
-void test_safelen_simdlen() {
+void test_safelen_simdlen(void) {
   int i;
 // expected-error@+1 {{the value of 'simdlen' parameter must be less than or equal to the value of the 'safelen' parameter}}
 #pragma omp simd simdlen(6) safelen(5)
@@ -276,7 +276,7 @@ void test_safelen_simdlen() {
     ;
 }
 
-void test_collapse() {
+void test_collapse(void) {
   int i;
 // expected-error@+1 {{expected '('}}
 #pragma omp simd collapse
@@ -383,7 +383,7 @@ void test_collapse() {
         i += j;
 }
 
-void test_linear() {
+void test_linear(void) {
   int i;
 // expected-error@+1 {{expected expression}} expected-error@+1 {{expected ')'}} expected-note@+1 {{to match this '('}}
 #pragma omp simd linear(
@@ -487,7 +487,7 @@ void test_linear() {
     ;
 }
 
-void test_aligned() {
+void test_aligned(void) {
   int i;
 // expected-error@+1 {{expected expression}} expected-error@+1 {{expected ')'}} expected-note@+1 {{to match this '('}}
 #pragma omp simd aligned(
@@ -584,7 +584,7 @@ void test_aligned() {
     ;
 }
 
-void test_private() {
+void test_private(void) {
   int i;
 // expected-error@+2 {{expected expression}}
 // expected-error@+1 {{expected ')'}} expected-note@+1 {{to match this '('}}
@@ -626,7 +626,7 @@ void test_private() {
   }
 }
 
-void test_firstprivate() {
+void test_firstprivate(void) {
   int i;
 // expected-error@+3 {{expected ')'}} expected-note@+3 {{to match this '('}}
 // expected-error@+2 {{unexpected OpenMP clause 'firstprivate' in directive '#pragma omp simd'}}
@@ -636,7 +636,7 @@ void test_firstprivate() {
     ;
 }
 
-void test_lastprivate() {
+void test_lastprivate(void) {
   int i;
 // expected-error@+2 {{expected ')'}} expected-note@+2 {{to match this '('}}
 // expected-error@+1 {{expected expression}}
@@ -678,7 +678,7 @@ void test_lastprivate() {
     ;
 }
 
-void test_reduction() {
+void test_reduction(void) {
   int i, x, y;
 // expected-error@+3 {{expected ')'}} expected-note@+3 {{to match this '('}}
 // expected-error@+2 {{expected identifier}}
@@ -780,7 +780,7 @@ void test_reduction() {
     ;
 }
 
-void test_loop_messages() {
+void test_loop_messages(void) {
   float a[100], b[100], c[100];
 // expected-error@+2 {{variable must be of integer or pointer type}}
 #pragma omp simd
@@ -808,7 +808,7 @@ void linear_modifiers(int argc) {
   for (int k = 0; k < argc; ++k) ++k;
 }
 
-void test_nontemporal() {
+void test_nontemporal(void) {
   int i;
 // omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp simd'}} expected-error@+1 {{expected expression}} expected-error@+1 {{expected ')'}} expected-note@+1 {{to match this '('}}
 #pragma omp simd nontemporal(

@@ -25,6 +25,7 @@
 #include "clang/Serialization/ASTReader.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DerivedTypes.h"
 using namespace clang;
 
 static bool MacroBodyEndsInBackslash(StringRef MacroBody) {
@@ -370,6 +371,50 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
                                                const LangOptions &LangOpts,
                                                const FrontendOptions &FEOpts,
                                                MacroBuilder &Builder) {
+  if (LangOpts.HLSL) {
+    Builder.defineMacro("__hlsl_clang");
+    // HLSL Version
+    Builder.defineMacro("__HLSL_VERSION",
+                        Twine((unsigned)LangOpts.getHLSLVersion()));
+
+    if (LangOpts.NativeHalfType)
+      Builder.defineMacro("__HLSL_ENABLE_16_BIT",
+                          Twine((unsigned)LangOpts.getHLSLVersion()));
+
+    // Shader target information
+    // "enums" for shader stages
+    Builder.defineMacro("__SHADER_STAGE_VERTEX",
+                        Twine((uint32_t)ShaderStage::Vertex));
+    Builder.defineMacro("__SHADER_STAGE_PIXEL",
+                        Twine((uint32_t)ShaderStage::Pixel));
+    Builder.defineMacro("__SHADER_STAGE_GEOMETRY",
+                        Twine((uint32_t)ShaderStage::Geometry));
+    Builder.defineMacro("__SHADER_STAGE_HULL",
+                        Twine((uint32_t)ShaderStage::Hull));
+    Builder.defineMacro("__SHADER_STAGE_DOMAIN",
+                        Twine((uint32_t)ShaderStage::Domain));
+    Builder.defineMacro("__SHADER_STAGE_COMPUTE",
+                        Twine((uint32_t)ShaderStage::Compute));
+    Builder.defineMacro("__SHADER_STAGE_AMPLIFICATION",
+                        Twine((uint32_t)ShaderStage::Amplification));
+    Builder.defineMacro("__SHADER_STAGE_MESH",
+                        Twine((uint32_t)ShaderStage::Mesh));
+    Builder.defineMacro("__SHADER_STAGE_LIBRARY",
+                        Twine((uint32_t)ShaderStage::Library));
+    // The current shader stage itself
+    uint32_t StageInteger = (uint32_t)TI.getTriple().getEnvironment() -
+                            (uint32_t)llvm::Triple::Pixel;
+
+    Builder.defineMacro("__SHADER_TARGET_STAGE", Twine(StageInteger));
+    // Add target versions
+    if (TI.getTriple().getOS() == llvm::Triple::ShaderModel) {
+      VersionTuple Version = TI.getTriple().getOSVersion();
+      Builder.defineMacro("__SHADER_TARGET_MAJOR", Twine(Version.getMajor()));
+      unsigned Minor = Version.getMinor() ? *Version.getMinor() : 0;
+      Builder.defineMacro("__SHADER_TARGET_MINOR", Twine(Minor));
+    }
+    return;
+  }
   // C++ [cpp.predefined]p1:
   //   The following macro names shall be defined by the implementation:
 
@@ -537,6 +582,9 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__HIP_MEMORY_SCOPE_SYSTEM", "5");
     if (LangOpts.CUDAIsDevice)
       Builder.defineMacro("__HIP_DEVICE_COMPILE__");
+    if (LangOpts.GPUDefaultStream ==
+        LangOptions::GPUDefaultStreamKind::PerThread)
+      Builder.defineMacro("HIP_API_PER_THREAD_DEFAULT_STREAM");
   }
 }
 
@@ -557,10 +605,11 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_unicode_literals", "200710L");
     Builder.defineMacro("__cpp_user_defined_literals", "200809L");
     Builder.defineMacro("__cpp_lambdas", "200907L");
-    Builder.defineMacro("__cpp_constexpr",
-                        LangOpts.CPlusPlus20 ? "201907L" :
-                        LangOpts.CPlusPlus17 ? "201603L" :
-                        LangOpts.CPlusPlus14 ? "201304L" : "200704");
+    Builder.defineMacro("__cpp_constexpr", LangOpts.CPlusPlus2b   ? "202110L"
+                                           : LangOpts.CPlusPlus20 ? "201907L"
+                                           : LangOpts.CPlusPlus17 ? "201603L"
+                                           : LangOpts.CPlusPlus14 ? "201304L"
+                                                                  : "200704");
     Builder.defineMacro("__cpp_constexpr_in_decltype", "201711L");
     Builder.defineMacro("__cpp_range_based_for",
                         LangOpts.CPlusPlus17 ? "201603L" : "200907");
@@ -641,6 +690,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_implicit_move", "202011L");
     Builder.defineMacro("__cpp_size_t_suffix", "202011L");
     Builder.defineMacro("__cpp_if_consteval", "202106L");
+    Builder.defineMacro("__cpp_­multidimensional_­subscript", "202110L");
   }
   if (LangOpts.Char8)
     Builder.defineMacro("__cpp_char8_t", "201811L");
@@ -914,6 +964,13 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   Builder.defineMacro("__LONG_WIDTH__", Twine(TI.getLongWidth()));
   Builder.defineMacro("__LLONG_WIDTH__", Twine(TI.getLongLongWidth()));
 
+  size_t BitIntMaxWidth = TI.getMaxBitIntWidth();
+  assert(BitIntMaxWidth <= llvm::IntegerType::MAX_INT_BITS &&
+         "Target defined a max bit width larger than LLVM can support!");
+  assert(BitIntMaxWidth >= TI.getLongLongWidth() &&
+         "Target defined a max bit width smaller than the C standard allows!");
+  Builder.defineMacro("__BITINT_MAXWIDTH__", Twine(BitIntMaxWidth));
+
   DefineTypeSize("__SCHAR_MAX__", TargetInfo::SignedChar, TI, Builder);
   DefineTypeSize("__SHRT_MAX__", TargetInfo::SignedShort, TI, Builder);
   DefineTypeSize("__INT_MAX__", TargetInfo::SignedInt, TI, Builder);
@@ -1127,7 +1184,6 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   }
 
   // Macros to control C99 numerics and <float.h>
-  Builder.defineMacro("__FLT_EVAL_METHOD__", Twine(TI.getFloatEvalMethod()));
   Builder.defineMacro("__FLT_RADIX__", "2");
   Builder.defineMacro("__DECIMAL_DIG__", "__LDBL_DECIMAL_DIG__");
 
@@ -1197,6 +1253,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     case 52:
       Builder.defineMacro("_OPENMP", "202111");
       break;
+    case 50:
     default:
       // Default version is OpenMP 5.0
       Builder.defineMacro("_OPENMP", "201811");
@@ -1335,5 +1392,5 @@ void clang::InitializePreprocessor(
                              InitOpts.PrecompiledPreambleBytes.second);
 
   // Copy PredefinedBuffer into the Preprocessor.
-  PP.setPredefines(Predefines.str());
+  PP.setPredefines(std::move(PredefineBuffer));
 }

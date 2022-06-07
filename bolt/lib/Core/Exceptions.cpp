@@ -21,6 +21,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/Errc.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
@@ -38,11 +39,9 @@ extern llvm::cl::OptionCategory BoltCategory;
 extern llvm::cl::opt<unsigned> Verbosity;
 
 static llvm::cl::opt<bool>
-PrintExceptions("print-exceptions",
-  llvm::cl::desc("print exception handling data"),
-  llvm::cl::ZeroOrMore,
-  llvm::cl::Hidden,
-  llvm::cl::cat(BoltCategory));
+    PrintExceptions("print-exceptions",
+                    llvm::cl::desc("print exception handling data"),
+                    llvm::cl::Hidden, llvm::cl::cat(BoltCategory));
 
 } // namespace opts
 

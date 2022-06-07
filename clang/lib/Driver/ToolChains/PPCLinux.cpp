@@ -13,6 +13,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 
+using namespace clang::driver;
 using namespace clang::driver::toolchains;
 using namespace llvm::opt;
 using namespace llvm::sys;
@@ -75,9 +76,11 @@ bool PPCLinuxToolChain::SupportIEEEFloat128(
   if (Args.hasArg(options::OPT_nostdlib, options::OPT_nostdlibxx))
     return true;
 
+  CXXStdlibType StdLib = ToolChain::GetCXXStdlibType(Args);
   bool HasUnsupportedCXXLib =
-      ToolChain::GetCXXStdlibType(Args) == CST_Libcxx &&
-      GCCInstallation.getVersion().isOlderThan(12, 1, 0);
+      StdLib == CST_Libcxx ||
+      (StdLib == CST_Libstdcxx &&
+       GCCInstallation.getVersion().isOlderThan(12, 1, 0));
 
   return GlibcSupportsFloat128(Linux::getDynamicLinker(Args)) &&
          !(D.CCCIsCXX() && HasUnsupportedCXXLib);

@@ -17,6 +17,7 @@
 #include "bolt/Core/DebugData.h"
 #include "bolt/Utils/CommandLineOpts.h"
 #include "bolt/Utils/Utils.h"
+#include "llvm/DebugInfo/DWARF/DWARFCompileUnit.h"
 #include "llvm/MC/MCSection.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/Support/CommandLine.h"
@@ -33,12 +34,8 @@ namespace opts {
 extern cl::opt<JumpTableSupportLevel> JumpTables;
 extern cl::opt<bool> PreserveBlocksAlignment;
 
-cl::opt<bool>
-AlignBlocks("align-blocks",
-  cl::desc("align basic blocks"),
-  cl::init(false),
-  cl::ZeroOrMore,
-  cl::cat(BoltOptCategory));
+cl::opt<bool> AlignBlocks("align-blocks", cl::desc("align basic blocks"),
+                          cl::cat(BoltOptCategory));
 
 cl::opt<MacroFusionType>
 AlignMacroOpFusion("align-macro-fusion",
@@ -69,20 +66,15 @@ FunctionPadSpec("pad-funcs",
   cl::Hidden,
   cl::cat(BoltCategory));
 
-static cl::opt<bool>
-MarkFuncs("mark-funcs",
-  cl::desc("mark function boundaries with break instruction to make "
-           "sure we accidentally don't cross them"),
-  cl::ReallyHidden,
-  cl::ZeroOrMore,
-  cl::cat(BoltCategory));
+static cl::opt<bool> MarkFuncs(
+    "mark-funcs",
+    cl::desc("mark function boundaries with break instruction to make "
+             "sure we accidentally don't cross them"),
+    cl::ReallyHidden, cl::cat(BoltCategory));
 
-static cl::opt<bool>
-PrintJumpTables("print-jump-tables",
-  cl::desc("print jump tables"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+static cl::opt<bool> PrintJumpTables("print-jump-tables",
+                                     cl::desc("print jump tables"), cl::Hidden,
+                                     cl::cat(BoltCategory));
 
 static cl::opt<bool>
 X86AlignBranchBoundaryHotOnly("x86-align-branch-boundary-hot-only",
@@ -276,7 +268,7 @@ void BinaryEmitter::emitFunctions() {
 }
 
 bool BinaryEmitter::emitFunction(BinaryFunction &Function, bool EmitColdPart) {
-  if (Function.size() == 0)
+  if (Function.size() == 0 && !Function.hasIslandsInfo())
     return false;
 
   if (Function.getState() == BinaryFunction::State::Empty)
@@ -290,6 +282,12 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function, bool EmitColdPart) {
   BC.Ctx->addGenDwarfSection(Section);
 
   if (BC.HasRelocations) {
+    // Set section alignment to at least maximum possible object alignment.
+    // We need this to support LongJmp and other passes that calculates
+    // tentative layout.
+    if (Section->getAlignment() < opts::AlignFunctions)
+      Section->setAlignment(Align(opts::AlignFunctions));
+
     Streamer.emitCodeAlignment(BinaryFunction::MinAlign, &*BC.STI);
     uint16_t MaxAlignBytes = EmitColdPart ? Function.getMaxColdAlignmentBytes()
                                           : Function.getMaxAlignmentBytes();
@@ -321,10 +319,9 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function, bool EmitColdPart) {
   // Emit CFI start
   if (Function.hasCFI()) {
     Streamer.emitCFIStartProc(/*IsSimple=*/false);
-    if (Function.getPersonalityFunction() != nullptr) {
+    if (Function.getPersonalityFunction() != nullptr)
       Streamer.emitCFIPersonality(Function.getPersonalityFunction(),
                                   Function.getPersonalityEncoding());
-    }
     MCSymbol *LSDASymbol =
         EmitColdPart ? Function.getColdLSDASymbol() : Function.getLSDASymbol();
     if (LSDASymbol)
@@ -407,10 +404,9 @@ void BinaryEmitter::emitFunctionBody(BinaryFunction &BF, bool EmitColdPart,
       continue;
 
     if ((opts::AlignBlocks || opts::PreserveBlocksAlignment) &&
-        BB->getAlignment() > 1) {
+        BB->getAlignment() > 1)
       Streamer.emitCodeAlignment(BB->getAlignment(), &*BC.STI,
                                  BB->getAlignmentMaxBytes());
-    }
     Streamer.emitLabel(BB->getLabel());
     if (!EmitCodeOnly) {
       if (MCSymbol *EntrySymbol = BF.getSecondaryEntryPointSymbol(*BB))
@@ -493,6 +489,13 @@ void BinaryEmitter::emitConstantIslands(BinaryFunction &BF, bool EmitColdPart,
   if (Islands.DataOffsets.empty() && Islands.Dependency.empty())
     return;
 
+  // AArch64 requires CI to be aligned to 8 bytes due to access instructions
+  // restrictions. E.g. the ldr with imm, where imm must be aligned to 8 bytes.
+  const uint16_t Alignment = OnBehalfOf
+                                 ? OnBehalfOf->getConstantIslandAlignment()
+                                 : BF.getConstantIslandAlignment();
+  Streamer.emitCodeAlignment(Alignment, &*BC.STI);
+
   if (!OnBehalfOf) {
     if (!EmitColdPart)
       Streamer.emitLabel(BF.getFunctionConstantIslandLabel());
@@ -526,15 +529,14 @@ void BinaryEmitter::emitConstantIslands(BinaryFunction &BF, bool EmitColdPart,
     auto NextData = std::next(DataIter);
     auto CodeIter = Islands.CodeOffsets.lower_bound(*DataIter);
     if (CodeIter == Islands.CodeOffsets.end() &&
-        NextData == Islands.DataOffsets.end()) {
+        NextData == Islands.DataOffsets.end())
       EndOffset = BF.getMaxSize();
-    } else if (CodeIter == Islands.CodeOffsets.end()) {
+    else if (CodeIter == Islands.CodeOffsets.end())
       EndOffset = *NextData;
-    } else if (NextData == Islands.DataOffsets.end()) {
+    else if (NextData == Islands.DataOffsets.end())
       EndOffset = *CodeIter;
-    } else {
+    else
       EndOffset = (*CodeIter > *NextData) ? *NextData : *CodeIter;
-    }
 
     if (FunctionOffset == EndOffset)
       continue; // Size is zero, nothing to emit
@@ -860,9 +862,8 @@ void BinaryEmitter::emitCFIInstruction(const MCCFIInstruction &Inst) const {
 void BinaryEmitter::emitLSDA(BinaryFunction &BF, bool EmitColdPart) {
   const BinaryFunction::CallSitesType *Sites =
       EmitColdPart ? &BF.getColdCallSites() : &BF.getCallSites();
-  if (Sites->empty()) {
+  if (Sites->empty())
     return;
-  }
 
   // Calculate callsite table size. Size of each callsite entry is:
   //
@@ -872,9 +873,8 @@ void BinaryEmitter::emitLSDA(BinaryFunction &BF, bool EmitColdPart) {
   //
   //  sizeof(dwarf::DW_EH_PE_data4) * 3 + sizeof(uleb128(action))
   uint64_t CallSiteTableLength = Sites->size() * 4 * 3;
-  for (const BinaryFunction::CallSite &CallSite : *Sites) {
+  for (const BinaryFunction::CallSite &CallSite : *Sites)
     CallSiteTableLength += getULEB128Size(CallSite.Action);
-  }
 
   Streamer.SwitchSection(BC.MOFI->getLSDASection());
 

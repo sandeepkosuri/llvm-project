@@ -464,7 +464,7 @@ llvm::Error dwarfgen::Generator::init(Triple TheTriple, uint16_t V) {
   TLOF->Initialize(*MC, *TM);
   MC->setObjectFileInfo(TLOF);
 
-  MCE = TheTarget->createMCCodeEmitter(*MII, *MRI, *MC);
+  MCE = TheTarget->createMCCodeEmitter(*MII, *MC);
   if (!MCE)
     return make_error<StringError>("no code emitter for target " + TripleName,
                                    inconvertibleErrorCode());
@@ -544,7 +544,7 @@ StringRef dwarfgen::Generator::generate() {
   for (auto &LT : LineTables)
     LT->generate(*MC, *Asm);
 
-  MS->Finish();
+  MS->finish();
   if (FileBytes.empty())
     return StringRef();
   return StringRef(FileBytes.data(), FileBytes.size());

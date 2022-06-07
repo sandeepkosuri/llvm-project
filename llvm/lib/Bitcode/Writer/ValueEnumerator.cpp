@@ -257,9 +257,7 @@ static void predictValueUseListOrderImpl(const Value *V, const Function *F,
     return LU->getOperandNo() > RU->getOperandNo();
   });
 
-  if (llvm::is_sorted(List, [](const Entry &L, const Entry &R) {
-        return L.second < R.second;
-      }))
+  if (llvm::is_sorted(List, llvm::less_second()))
     // Order is already correct.
     return;
 
@@ -386,8 +384,10 @@ ValueEnumerator::ValueEnumerator(const Module &M,
   }
 
   // Enumerate the ifuncs.
-  for (const GlobalIFunc &GIF : M.ifuncs())
+  for (const GlobalIFunc &GIF : M.ifuncs()) {
     EnumerateValue(&GIF);
+    EnumerateType(GIF.getValueType());
+  }
 
   // Remember what is the cutoff between globalvalue's and other constants.
   unsigned FirstConstant = Values.size();
@@ -937,9 +937,12 @@ void ValueEnumerator::EnumerateValue(const Value *V) {
            I != E; ++I)
         if (!isa<BasicBlock>(*I)) // Don't enumerate BB operand to BlockAddress.
           EnumerateValue(*I);
-      if (auto *CE = dyn_cast<ConstantExpr>(C))
+      if (auto *CE = dyn_cast<ConstantExpr>(C)) {
         if (CE->getOpcode() == Instruction::ShuffleVector)
           EnumerateValue(CE->getShuffleMaskForBitcode());
+        if (auto *GEP = dyn_cast<GEPOperator>(CE))
+          EnumerateType(GEP->getSourceElementType());
+      }
 
       // Finally, add the value.  Doing this could make the ValueID reference be
       // dangling, don't reuse it.

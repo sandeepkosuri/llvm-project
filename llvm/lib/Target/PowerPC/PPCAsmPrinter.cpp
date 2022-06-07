@@ -34,6 +34,7 @@
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineModuleInfoImpls.h"
@@ -253,6 +254,8 @@ public:
   void emitFunctionEntryLabel() override;
 
   void emitFunctionBodyEnd() override;
+
+  void emitPGORefs();
 
   void emitEndOfAsmFile(Module &) override;
 
@@ -879,7 +882,7 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
 
       // Print MO for better readability
       if (isVerbose())
-        OutStreamer->GetCommentOS() << MO << '\n';
+        OutStreamer->getCommentOS() << MO << '\n';
       EmitToStreamer(*OutStreamer, TmpInst);
       return;
     }
@@ -950,7 +953,7 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
 
     // Print MO for better readability
     if (isVerbose() && IsAIX)
-      OutStreamer->GetCommentOS() << MO << '\n';
+      OutStreamer->getCommentOS() << MO << '\n';
     EmitToStreamer(*OutStreamer, TmpInst);
     return;
   }
@@ -1895,10 +1898,15 @@ void PPCAIXAsmPrinter::emitLinkage(const GlobalValue *GV,
 
   MCSymbolAttr VisibilityAttr = MCSA_Invalid;
   if (!TM.getIgnoreXCOFFVisibility()) {
+    if (GV->hasDLLExportStorageClass() && !GV->hasDefaultVisibility())
+      report_fatal_error(
+          "Cannot not be both dllexport and non-default visibility");
     switch (GV->getVisibility()) {
 
-    // TODO: "exported" and "internal" Visibility needs to go here.
+    // TODO: "internal" Visibility needs to go here.
     case GlobalValue::DefaultVisibility:
+      if (GV->hasDLLExportStorageClass())
+        VisibilityAttr = MAI->getExportedVisibilityAttr();
       break;
     case GlobalValue::HiddenVisibility:
       VisibilityAttr = MAI->getHiddenVisibilityAttr();
@@ -2382,9 +2390,9 @@ void PPCAIXAsmPrinter::emitGlobalVariableHelper(const GlobalVariable *GV) {
   // Print GV in verbose mode
   if (isVerbose()) {
     if (GV->hasInitializer()) {
-      GV->printAsOperand(OutStreamer->GetCommentOS(),
+      GV->printAsOperand(OutStreamer->getCommentOS(),
                          /*PrintType=*/false, GV->getParent());
-      OutStreamer->GetCommentOS() << '\n';
+      OutStreamer->getCommentOS() << '\n';
     }
   }
 
@@ -2424,9 +2432,8 @@ void PPCAIXAsmPrinter::emitGlobalVariableHelper(const GlobalVariable *GV) {
   }
 
   // Emit aliasing label for global variable.
-  llvm::for_each(GOAliasMap[GV], [this](const GlobalAlias *Alias) {
+  for (const GlobalAlias *Alias : GOAliasMap[GV])
     OutStreamer->emitLabel(getSymbol(Alias));
-  });
 
   emitGlobalConstant(GV->getParent()->getDataLayout(), GV->getInitializer());
 }
@@ -2441,10 +2448,8 @@ void PPCAIXAsmPrinter::emitFunctionDescriptor() {
       cast<MCSymbolXCOFF>(CurrentFnDescSym)->getRepresentedCsect());
 
   // Emit aliasing label for function descriptor csect.
-  llvm::for_each(GOAliasMap[&MF->getFunction()],
-                 [this](const GlobalAlias *Alias) {
-                   OutStreamer->emitLabel(getSymbol(Alias));
-                 });
+  for (const GlobalAlias *Alias : GOAliasMap[&MF->getFunction()])
+    OutStreamer->emitLabel(getSymbol(Alias));
 
   // Emit function entry point address.
   OutStreamer->emitValue(MCSymbolRefExpr::create(CurrentFnSym, OutContext),
@@ -2468,11 +2473,34 @@ void PPCAIXAsmPrinter::emitFunctionEntryLabel() {
     PPCAsmPrinter::emitFunctionEntryLabel();
 
   // Emit aliasing label for function entry point label.
-  llvm::for_each(
-      GOAliasMap[&MF->getFunction()], [this](const GlobalAlias *Alias) {
-        OutStreamer->emitLabel(
-            getObjFileLowering().getFunctionEntryPointSymbol(Alias, TM));
-      });
+  for (const GlobalAlias *Alias : GOAliasMap[&MF->getFunction()])
+    OutStreamer->emitLabel(
+        getObjFileLowering().getFunctionEntryPointSymbol(Alias, TM));
+}
+
+void PPCAIXAsmPrinter::emitPGORefs() {
+  if (OutContext.hasXCOFFSection(
+          "__llvm_prf_cnts",
+          XCOFF::CsectProperties(XCOFF::XMC_RW, XCOFF::XTY_SD))) {
+    MCSection *CntsSection = OutContext.getXCOFFSection(
+        "__llvm_prf_cnts", SectionKind::getData(),
+        XCOFF::CsectProperties(XCOFF::XMC_RW, XCOFF::XTY_SD),
+        /*MultiSymbolsAllowed*/ true);
+
+    OutStreamer->SwitchSection(CntsSection);
+    if (OutContext.hasXCOFFSection(
+            "__llvm_prf_data",
+            XCOFF::CsectProperties(XCOFF::XMC_RW, XCOFF::XTY_SD)))
+      OutStreamer->emitXCOFFRefDirective("__llvm_prf_data[RW]");
+    if (OutContext.hasXCOFFSection(
+            "__llvm_prf_names",
+            XCOFF::CsectProperties(XCOFF::XMC_RO, XCOFF::XTY_SD)))
+      OutStreamer->emitXCOFFRefDirective("__llvm_prf_names[RO]");
+    if (OutContext.hasXCOFFSection(
+            "__llvm_prf_vnds",
+            XCOFF::CsectProperties(XCOFF::XMC_RW, XCOFF::XTY_SD)))
+      OutStreamer->emitXCOFFRefDirective("__llvm_prf_vnds[RW]");
+  }
 }
 
 void PPCAIXAsmPrinter::emitEndOfAsmFile(Module &M) {
@@ -2480,6 +2508,8 @@ void PPCAIXAsmPrinter::emitEndOfAsmFile(Module &M) {
   // module, we will never need to reference the TOC base.
   if (M.empty() && TOCDataGlobalVars.empty())
     return;
+
+  emitPGORefs();
 
   // Switch to section to emit TOC base.
   OutStreamer->SwitchSection(getObjFileLowering().getTOCBaseSection());

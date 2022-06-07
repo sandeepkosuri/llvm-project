@@ -1,5 +1,4 @@
-//===- TosaDecomposeTransposeConv.cpp
-//------------------------------------------===//
+//===- TosaDecomposeTransposeConv.cpp -------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -375,6 +374,6 @@ public:
 
 void mlir::tosa::populateTosaDecomposeTransposeConv(
     MLIRContext *ctx, RewritePatternSet &patterns) {
-  patterns.insert<TransposeConvDilatedConverter>(ctx);
-  patterns.insert<TransposeConvStridedConverter>(ctx);
+  patterns.add<TransposeConvDilatedConverter>(ctx);
+  patterns.add<TransposeConvStridedConverter>(ctx);
 }
