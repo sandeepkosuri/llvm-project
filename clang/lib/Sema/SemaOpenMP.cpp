@@ -7011,12 +7011,9 @@ ExprResult Sema::ActOnOpenMPCall(ExprResult Call, Scope *Scope,
 
   if (this->LangOpts.OpenMP >= 51 && CalleeFnDecl->getIdentifier() &&
       CalleeFnDecl->getName().startswith_insensitive(StringRef("omp_"))) {
-    // checking for any calls recursively inside an Order region
-    while (Scope) {
-      if (Scope->isOpenMPOrderClauseScope())
-        Diag(LParenLoc, diag::err_omp_unexpected_call_to_omp_runtime_api);
-      Scope = Scope->getParent();
-    }
+    // checking for any calls inside an Order region
+    if (Scope->isOpenMPOrderClauseScope())
+      Diag(LParenLoc, diag::err_omp_unexpected_call_to_omp_runtime_api);
   }
 
   if (!CalleeFnDecl->hasAttr<OMPDeclareVariantAttr>())
@@ -16212,8 +16209,12 @@ OMPClause *Sema::ActOnOpenMPOrderClause(
           << getOpenMPClauseName(OMPC_order);
     } else {
       DSAStack->setRegionHasOrderConcurrent(/*HasOrderConcurrent=*/true);
-      if (DSAStack->getCurScope())
-        DSAStack->getCurScope()->setFlags(Scope::OpenMPOrderClauseScope);
+      if (DSAStack->getCurScope()) {
+        // mark the current scope with 'order' flag
+        unsigned existingFlags = DSAStack->getCurScope()->getFlags();
+        DSAStack->getCurScope()->setFlags(existingFlags |
+                                          Scope::OpenMPOrderClauseScope);
+      }
     }
   }
   return new (Context) OMPOrderClause(Kind, KindLoc, StartLoc, LParenLoc,
