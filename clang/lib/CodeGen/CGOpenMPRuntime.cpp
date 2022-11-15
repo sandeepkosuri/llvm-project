@@ -6359,11 +6359,10 @@ llvm::Value *CGOpenMPRuntime::emitNumTeamsForTargetDirective(
          "Clauses associated with the teams directive expected to be emitted "
          "only for the host!");
   CGBuilderTy &Bld = CGF.Builder;
+  OpenMPDirectiveKind DirectiveKind = D.getDirectiveKind();
   int32_t DefaultNT = -1;
   const Expr *NumTeams = getNumTeamsExprForTargetDirective(CGF, D, DefaultNT);
   if (NumTeams != nullptr) {
-    OpenMPDirectiveKind DirectiveKind = D.getDirectiveKind();
-
     switch (DirectiveKind) {
     case OMPD_target: {
       const auto *CS = D.getInnermostCapturedStmt();
@@ -6387,6 +6386,13 @@ llvm::Value *CGOpenMPRuntime::emitNumTeamsForTargetDirective(
     }
     default:
       break;
+    }
+  } else if (DefaultNT == -1) {
+    if (DirectiveKind == OMPD_target && 
+        D.hasClausesOfKind<OMPThreadLimitClause>()) {
+      DefaultNT = 1;
+    } else {
+      return nullptr;
     }
   }
 
@@ -6494,8 +6500,6 @@ const Expr *CGOpenMPRuntime::getNumThreadsExprForTargetDirective(
 
   switch (DirectiveKind) {
   case OMPD_target:
-    // Teams have no clause thread_limit
-    return nullptr;
   case OMPD_target_teams:
   case OMPD_target_teams_distribute:
     if (D.hasClausesOfKind<OMPThreadLimitClause>()) {
@@ -6621,6 +6625,17 @@ llvm::Value *CGOpenMPRuntime::emitNumThreadsForTargetDirective(
   switch (DirectiveKind) {
   case OMPD_target: {
     const CapturedStmt *CS = D.getInnermostCapturedStmt();
+    if (D.hasClausesOfKind<OMPThreadLimitClause>()) {
+      // Extract target thread_limit specification
+      CGOpenMPInnerExprInfo CGInfo(CGF, *CS);
+      CodeGenFunction::RunCleanupsScope ThreadLimitScope(CGF);
+      const auto *ThreadLimitClause =
+        D.getSingleClause<OMPThreadLimitClause>();
+      llvm::Value *ThreadLimit = CGF.EmitScalarExpr(
+        ThreadLimitClause->getThreadLimit(), /*IgnoreResultAssign=*/true);
+      ThreadLimitVal =
+        Bld.CreateIntCast(ThreadLimit, CGF.Int32Ty, /*isSigned=*/false);
+    }
     if (llvm::Value *NumThreads = getNumThreads(CGF, CS, ThreadLimitVal))
       return NumThreads;
     const Stmt *Child = CGOpenMPRuntime::getSingleCompoundChild(
