@@ -2864,13 +2864,6 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
         ConsumeToken();
     }
 
-    if (isOpenMPLoopDirective(DKind))
-      ScopeFlags |= Scope::OpenMPLoopDirectiveScope;
-    if (isOpenMPSimdDirective(DKind))
-      ScopeFlags |= Scope::OpenMPSimdDirectiveScope;
-    ParseScope OMPDirectiveScope(this, ScopeFlags);
-    Actions.StartOpenMPDSABlock(DKind, DirName, Actions.getCurScope(), Loc);
-
     while (Tok.isNot(tok::annot_pragma_openmp_end)) {
       // If we are parsing for a directive within a metadirective, the directive
       // ends with a ')'.
@@ -2923,6 +2916,24 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
     // Consume final annot_pragma_openmp_end.
     ConsumeAnnotationToken();
 
+    auto DKind_old = DKind;
+    bool has_thread_limit = false;
+    if(Clauses.size() >= 1)
+      for(auto c : Clauses)
+        if(c->getClauseKind() == OMPC_thread_limit)
+          has_thread_limit = true;
+
+    if (DKind == OMPD_target && has_thread_limit){
+      DKind = OMPD_target_teams;
+    }
+
+    if (isOpenMPLoopDirective(DKind))
+      ScopeFlags |= Scope::OpenMPLoopDirectiveScope;
+    if (isOpenMPSimdDirective(DKind))
+      ScopeFlags |= Scope::OpenMPSimdDirectiveScope;
+    ParseScope OMPDirectiveScope(this, ScopeFlags);
+    Actions.StartOpenMPDSABlock(DKind, DirName, Actions.getCurScope(), Loc);
+
     // OpenMP [2.13.8, ordered Construct, Syntax]
     // If the depend clause is specified, the ordered construct is a stand-alone
     // directive.
@@ -2967,7 +2978,7 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
       AssociatedStmt = Actions.ActOnOpenMPRegionEnd(AssociatedStmt, Clauses);
     }
     Directive = Actions.ActOnOpenMPExecutableDirective(
-        DKind, DirName, CancelRegion, Clauses, AssociatedStmt.get(), Loc,
+        DKind_old, DirName, CancelRegion, Clauses, AssociatedStmt.get(), Loc,
         EndLoc);
 
     // Exit scope.
