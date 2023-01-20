@@ -2864,6 +2864,33 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
         ConsumeToken();
     }
 
+    // Check if there is thread_limit clause on target directive.
+    auto DKind_old = DKind;
+    if(DKind == OMPD_target){
+      bool has_thread_limit = false;
+
+      for (int i=0; GetLookAheadToken(i).isNot(tok::annot_pragma_openmp_end); i++){
+        OpenMPClauseKind CKind = Tok.isAnnotation()
+                                   ? OMPC_unknown
+                                   : getOpenMPClauseKind(PP.getSpelling(Tok));
+        if(CKind == OMPC_thread_limit) {
+          has_thread_limit = true;
+          break;
+        }
+      }
+
+      // If 'target' has 'thread_limit' clause, emit 'target teams' instead.
+      if(has_thread_limit)
+        DKind = OMPD_target_teams;
+    }
+
+    if (isOpenMPLoopDirective(DKind))
+      ScopeFlags |= Scope::OpenMPLoopDirectiveScope;
+    if (isOpenMPSimdDirective(DKind))
+      ScopeFlags |= Scope::OpenMPSimdDirectiveScope;
+    ParseScope OMPDirectiveScope(this, ScopeFlags);
+    Actions.StartOpenMPDSABlock(DKind, DirName, Actions.getCurScope(), Loc);
+
     while (Tok.isNot(tok::annot_pragma_openmp_end)) {
       // If we are parsing for a directive within a metadirective, the directive
       // ends with a ')'.
@@ -2915,24 +2942,6 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
     EndLoc = Tok.getLocation();
     // Consume final annot_pragma_openmp_end.
     ConsumeAnnotationToken();
-
-    auto DKind_old = DKind;
-    bool has_thread_limit = false;
-    if(Clauses.size() >= 1)
-      for(auto c : Clauses)
-        if(c->getClauseKind() == OMPC_thread_limit)
-          has_thread_limit = true;
-
-    if (DKind == OMPD_target && has_thread_limit){
-      DKind = OMPD_target_teams;
-    }
-
-    if (isOpenMPLoopDirective(DKind))
-      ScopeFlags |= Scope::OpenMPLoopDirectiveScope;
-    if (isOpenMPSimdDirective(DKind))
-      ScopeFlags |= Scope::OpenMPSimdDirectiveScope;
-    ParseScope OMPDirectiveScope(this, ScopeFlags);
-    Actions.StartOpenMPDSABlock(DKind, DirName, Actions.getCurScope(), Loc);
 
     // OpenMP [2.13.8, ordered Construct, Syntax]
     // If the depend clause is specified, the ordered construct is a stand-alone
