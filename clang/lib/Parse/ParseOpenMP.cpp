@@ -2864,6 +2864,34 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
         ConsumeToken();
     }
 
+    // [1: target thread_limit]
+    // Should emit 'target teams' in the case of 'target' with thread_limit clause
+    // call a different function to parse `target thread_limit`
+    bool target_has_thread_limit = false;
+    if(DKind == OMPD_target){
+      for (int i=0; GetLookAheadToken(i).isNot(tok::annot_pragma_openmp_end); i++){
+        OpenMPClauseKind CKind = Tok.isAnnotation()
+                                   ? OMPC_unknown
+                                   : getOpenMPClauseKind(PP.getSpelling(Tok));
+        if(CKind == OMPC_thread_limit) {
+          target_has_thread_limit = true;
+          break;
+        }
+      }
+
+      // control flow jumps to the below function, and it emits 'target teams thread_limit',
+      // In the below function we do the same kind of processing done in the current function,
+      // but specific to 'target thread limit' case
+      if(target_has_thread_limit) {
+        ParseOpenMPTargetThreadLimit(Directive, DKind, DirName, Loc, EndLoc,
+                                     ScopeFlags, ReadDirectiveWithinMetadirective,
+                                     ImplicitClauseAllowed, HasAssociatedStatement,
+                                     ImplicitTok, StmtCtx, Clauses, CancelRegion,
+                                     FirstClauses);
+        break;
+      }
+    }
+
     if (isOpenMPLoopDirective(DKind))
       ScopeFlags |= Scope::OpenMPLoopDirectiveScope;
     if (isOpenMPSimdDirective(DKind))
@@ -2994,6 +3022,108 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
     break;
   }
   return Directive;
+}
+
+// Parses target directive which has a thread_limit clause
+void Parser::ParseOpenMPTargetThreadLimit(StmtResult & Directive, OpenMPDirectiveKind & DKind, 
+       DeclarationNameInfo & DirName, SourceLocation & Loc, SourceLocation & EndLoc, unsigned & ScopeFlags,
+       bool & ReadDirectiveWithinMetadirective, bool & ImplicitClauseAllowed,
+       bool & HasAssociatedStatement, Token & ImplicitTok, ParsedStmtContext & StmtCtx,
+       SmallVector<OMPClause *, 5> & Clauses, OpenMPDirectiveKind & CancelRegion,
+       SmallVector<llvm::PointerIntPair<OMPClause *, 1, bool>,
+                   llvm::omp::Clause_enumSize + 1> & FirstClauses) {
+  DKind = OMPD_target_teams;
+  ParseScope OMPDirectiveScope(this, ScopeFlags);
+  Actions.StartOpenMPDSABlock(DKind, DirName, Actions.getCurScope(), Loc);
+
+  // [2: target thread_limit]
+  // Should parse the clauses based on original directive
+  DKind = OMPD_target;
+
+  while (Tok.isNot(tok::annot_pragma_openmp_end)) {
+    // If we are parsing for a directive within a metadirective, the directive
+    // ends with a ')'.
+    if (ReadDirectiveWithinMetadirective && Tok.is(tok::r_paren)) {
+      while (Tok.isNot(tok::annot_pragma_openmp_end))
+        ConsumeAnyToken();
+      break;
+    }
+    bool HasImplicitClause = false;
+    if (ImplicitClauseAllowed && Tok.is(tok::l_paren)) {
+      HasImplicitClause = true;
+      // Push copy of the current token back to stream to properly parse
+      // pseudo-clause OMPFlushClause or OMPDepobjClause.
+      PP.EnterToken(Tok, /*IsReinject*/ true);
+      PP.EnterToken(ImplicitTok, /*IsReinject*/ true);
+      ConsumeAnyToken();
+    }
+    OpenMPClauseKind CKind = Tok.isAnnotation()
+                                 ? OMPC_unknown
+                                 : getOpenMPClauseKind(PP.getSpelling(Tok));
+    if (HasImplicitClause) {
+      assert(CKind == OMPC_unknown && "Must be unknown implicit clause.");
+      if (DKind == OMPD_flush) {
+        CKind = OMPC_flush;
+      } else {
+        assert(DKind == OMPD_depobj && "Expected flush or depobj directives.");
+        CKind = OMPC_depobj;
+      }
+    }
+    // No more implicit clauses allowed.
+    ImplicitClauseAllowed = false;
+    Actions.StartOpenMPClause(CKind);
+    HasImplicitClause = false;
+    OMPClause *Clause = ParseOpenMPClause(
+        DKind, CKind, !FirstClauses[unsigned(CKind)].getInt());
+    FirstClauses[unsigned(CKind)].setInt(true);
+    if (Clause) {
+      FirstClauses[unsigned(CKind)].setPointer(Clause);
+      Clauses.push_back(Clause);
+    }
+
+    // Skip ',' if any.
+    if (Tok.is(tok::comma))
+      ConsumeToken();
+    Actions.EndOpenMPClause();
+  }
+  // End location of the directive.
+  EndLoc = Tok.getLocation();
+  // Consume final annot_pragma_openmp_end.
+  ConsumeAnnotationToken();
+
+  // [3: target thread_limit]
+  // Continue to emit 'target_teams' in the case of 'target' with 'thread_limit' clause
+  DKind = OMPD_target_teams;
+
+  StmtResult AssociatedStmt;
+  if (HasAssociatedStatement) {
+    // The body is a block scope like in Lambdas and Blocks.
+    Actions.ActOnOpenMPRegionStart(DKind, getCurScope());
+    // FIXME: We create a bogus CompoundStmt scope to hold the contents of
+    // the captured region. Code elsewhere assumes that any FunctionScopeInfo
+    // should have at least one compound statement scope within it.
+    ParsingOpenMPDirectiveRAII NormalScope(*this, /*Value=*/false);
+    {
+      Sema::CompoundScopeRAII Scope(Actions);
+      AssociatedStmt = ParseStatement();
+
+      if (AssociatedStmt.isUsable() && isOpenMPLoopDirective(DKind) &&
+          getLangOpts().OpenMPIRBuilder)
+        AssociatedStmt = Actions.ActOnOpenMPLoopnest(AssociatedStmt.get());
+    }
+    AssociatedStmt = Actions.ActOnOpenMPRegionEnd(AssociatedStmt, Clauses);
+  }
+
+  // [4: target thread_limit]
+  // Need the sema analysis of 'target', so revert back the DKind
+  DKind = OMPD_target;
+
+  Directive = Actions.ActOnOpenMPExecutableDirective(
+      DKind, DirName, CancelRegion, Clauses, AssociatedStmt.get(), Loc, EndLoc);
+
+  // Exit scope.
+  Actions.EndOpenMPDSABlock(Directive.get());
+  OMPDirectiveScope.Exit();
 }
 
 // Parses simple list:

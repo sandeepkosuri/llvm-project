@@ -12980,6 +12980,12 @@ StmtResult Sema::ActOnOpenMPTargetDirective(ArrayRef<OMPClause *> Clauses,
   }
 
   setFunctionHasBranchProtectedScope();
+  for (auto c : Clauses)
+  {
+    // if thread limit clause is found, emit a target teams directive instead
+    if (c->getClauseKind() == OMPC_thread_limit)
+      return ActOnOpenMPTargetTeamsDirective(Clauses, AStmt, StartLoc, EndLoc);
+  }
 
   return OMPTargetDirective::Create(Context, StartLoc, EndLoc, Clauses, AStmt);
 }

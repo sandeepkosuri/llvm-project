@@ -3368,6 +3368,16 @@ private:
   /// metadirective and therefore ends on the closing paren.
   StmtResult ParseOpenMPDeclarativeOrExecutableDirective(
       ParsedStmtContext StmtCtx, bool ReadDirectiveWithinMetadirective = false);
+  /// Parses target directive with thread_limit clause
+  ///
+  ///
+  void ParseOpenMPTargetThreadLimit(StmtResult & Directive, OpenMPDirectiveKind & DKind,
+       DeclarationNameInfo & DirName, SourceLocation & Loc, SourceLocation & EndLoc, unsigned & ScopeFlags,
+       bool & ReadDirectiveWithinMetadirective, bool & ImplicitClauseAllowed,
+       bool & HasAssociatedStatement, Token & ImplicitTok, ParsedStmtContext & StmtCtx,
+       SmallVector<OMPClause *, 5> & Clauses, OpenMPDirectiveKind & CancelRegion,
+       SmallVector<llvm::PointerIntPair<OMPClause *, 1, bool>,
+                   llvm::omp::Clause_enumSize + 1> & FirstClauses);
   /// Parses clause of kind \a CKind for directive of a kind \a Kind.
   ///
   /// \param DKind Kind of current directive.
