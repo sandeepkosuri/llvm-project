@@ -2909,6 +2909,38 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
           DKind, CKind, !FirstClauses[unsigned(CKind)].getInt());
       FirstClauses[unsigned(CKind)].setInt(true);
       if (Clause) {
+        // in the case of target directive, set the thread_limit for this scope
+        if (DKind == OMPD_target && CKind == OMPC_thread_limit) {
+          IntegerLiteral *TL = nullptr;
+          for (auto i : Clause->children()) {
+            TL = dyn_cast<IntegerLiteral>(i);
+            break;
+          }
+          unsigned TL_val = TL->getValue().getSExtValue();
+          if (TL_val) {
+            Actions.getCurScope()->setTargetThreadLimit(TL_val);
+          }
+        }
+
+        // in the cases of parallel directives, reset num_threads clause based
+        // on parent's scope
+        if (CKind == OMPC_num_threads &&
+            clang::isOpenMPParallelDirective(DKind)) {
+          if (unsigned target_thread_limit =
+                  Actions.getCurScope()->getParent()->getParentThreadLimit()) {
+            llvm::APInt TL_val =
+                llvm::APInt(/*numBits*/ 32, target_thread_limit);
+            IntegerLiteral *TL = IntegerLiteral::Create(
+                Actions.getASTContext(), TL_val,
+                Actions.getASTContext().getIntTypeForBitwidth(32, /*Signed=*/0),
+                Loc);
+            OMPClause *num_threads_clause = Actions.ActOnOpenMPNumThreadsClause(
+                TL, Clause->getBeginLoc(), Clause->getBeginLoc(),
+                Clause->getEndLoc());
+            if (num_threads_clause)
+              Clause = num_threads_clause;
+          }
+        }
         FirstClauses[unsigned(CKind)].setPointer(Clause);
         Clauses.push_back(Clause);
       }
@@ -2918,6 +2950,29 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
         ConsumeToken();
       Actions.EndOpenMPClause();
     }
+
+    // manually add num_threads clause if parallel directive doesn't have one in
+    // 'target thread_limit()' scope
+    if (clang::isOpenMPParallelDirective(DKind) &&
+        !FirstClauses[unsigned(OMPC_num_threads)].getInt()) {
+      OMPClause *num_threads_clause;
+      if (unsigned target_thread_limit =
+              Actions.getCurScope()->getParent()->getParentThreadLimit()) {
+        llvm::APInt TL_val = llvm::APInt(/*numBits*/ 32, target_thread_limit);
+        IntegerLiteral *TL = IntegerLiteral::Create(
+            Actions.getASTContext(), TL_val,
+            Actions.getASTContext().getIntTypeForBitwidth(32, /*Signed=*/0),
+            Loc);
+        num_threads_clause =
+            Actions.ActOnOpenMPNumThreadsClause(TL, Loc, Loc, Loc);
+      }
+      FirstClauses[unsigned(OMPC_num_threads)].setInt(true);
+      if (num_threads_clause) {
+        FirstClauses[unsigned(OMPC_num_threads)].setPointer(num_threads_clause);
+        Clauses.push_back(num_threads_clause);
+      }
+    }
+
     // End location of the directive.
     EndLoc = Tok.getLocation();
     // Consume final annot_pragma_openmp_end.
@@ -2969,6 +3024,12 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
     Directive = Actions.ActOnOpenMPExecutableDirective(
         DKind, DirName, CancelRegion, Clauses, AssociatedStmt.get(), Loc,
         EndLoc);
+
+    // unset the target's thread_limit for this scope
+    if (DKind == OMPD_target &&
+        FirstClauses[unsigned(OMPC_thread_limit)].getInt()) {
+      Actions.getCurScope()->setTargetThreadLimit(0);
+    }
 
     // Exit scope.
     Actions.EndOpenMPDSABlock(Directive.get());
