@@ -2446,6 +2446,50 @@ Parser::DeclGroupPtrTy Parser::ParseOpenMPDeclarativeDirectiveWithExtDecl(
   return nullptr;
 }
 
+/// @brief Returns a num_threads clause with a different value based on parent
+/// target thread_limit
+/// @param DKind Kind of current directive.
+/// @param CKind Kind of current clause.
+/// @param Clause thread_limit clause which needs to be edited.
+/// @return NTClause if new thread_limit clause is needed, else Clause itself
+OMPClause *Parser::editNumThreadsClause(OpenMPDirectiveKind DKind,
+                                        OpenMPClauseKind CKind,
+                                        OMPClause *Clause) {
+  // If num_threads is an Integer Constant, extract it for comparison with
+  // parent target's thread_limit
+  // TODO : Support general Expressions
+  assert(isa<OMPNumThreadsClause>(Clause) &&
+         "A numThreads clause is expected !");
+  IntegerLiteral *oldNumThreads = nullptr;
+  unsigned NT = 0,
+           targetTL =
+               Actions.getCurScope()->getParent()->getParentThreadLimit();
+  for (auto i : Clause->children()) {
+    if (isa<IntegerLiteral>(i))
+      oldNumThreads = dyn_cast<IntegerLiteral>(i);
+    break;
+  }
+  if (oldNumThreads && targetTL) {
+    NT = oldNumThreads->getValue().getSExtValue();
+    if (targetTL < NT) {
+      OMPNumThreadsClause *castedNTClause =
+          dyn_cast<OMPNumThreadsClause>(Clause);
+      SourceLocation StartLoc = castedNTClause->getBeginLoc(),
+                     LParenLoc = castedNTClause->getLParenLoc(),
+                     EndLoc = castedNTClause->getEndLoc();
+      llvm::APInt TL = llvm::APInt(/*numBits*/ 32, targetTL);
+      IntegerLiteral *newNumThreads = IntegerLiteral::Create(
+          Actions.getASTContext(), TL,
+          Actions.getASTContext().getIntTypeForBitwidth(32, /*Signed=*/0),
+          oldNumThreads->getLocation());
+      OMPClause *NTClause = Actions.ActOnOpenMPNumThreadsClause(
+          newNumThreads, StartLoc, LParenLoc, EndLoc);
+      return NTClause;
+    }
+  }
+  return Clause;
+}
+
 /// Parsing of declarative or executable OpenMP directives.
 ///
 ///       threadprivate-directive:
@@ -2913,11 +2957,12 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
         if (DKind == OMPD_target && CKind == OMPC_thread_limit) {
           IntegerLiteral *TL = nullptr;
           for (auto i : Clause->children()) {
-            TL = dyn_cast<IntegerLiteral>(i);
+            if (isa<IntegerLiteral>(i))
+              TL = dyn_cast<IntegerLiteral>(i);
             break;
           }
-          unsigned TL_val = TL->getValue().getSExtValue();
-          if (TL_val) {
+          if (TL) {
+            unsigned TL_val = TL->getValue().getSExtValue();
             Actions.getCurScope()->setTargetThreadLimit(TL_val);
           }
         }
@@ -2926,20 +2971,7 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
         // on parent's scope
         if (CKind == OMPC_num_threads &&
             clang::isOpenMPParallelDirective(DKind)) {
-          if (unsigned target_thread_limit =
-                  Actions.getCurScope()->getParent()->getParentThreadLimit()) {
-            llvm::APInt TL_val =
-                llvm::APInt(/*numBits*/ 32, target_thread_limit);
-            IntegerLiteral *TL = IntegerLiteral::Create(
-                Actions.getASTContext(), TL_val,
-                Actions.getASTContext().getIntTypeForBitwidth(32, /*Signed=*/0),
-                Loc);
-            OMPClause *num_threads_clause = Actions.ActOnOpenMPNumThreadsClause(
-                TL, Clause->getBeginLoc(), Clause->getBeginLoc(),
-                Clause->getEndLoc());
-            if (num_threads_clause)
-              Clause = num_threads_clause;
-          }
+          Clause = editNumThreadsClause(DKind, CKind, Clause);
         }
         FirstClauses[unsigned(CKind)].setPointer(Clause);
         Clauses.push_back(Clause);
@@ -2951,25 +2983,24 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
       Actions.EndOpenMPClause();
     }
 
-    // manually add num_threads clause if parallel directive doesn't have one in
-    // 'target thread_limit()' scope
+    // Manually add num_threads clause if parallel directive doesn't have one in
+    // 'target thread_limit' scope
     if (clang::isOpenMPParallelDirective(DKind) &&
         !FirstClauses[unsigned(OMPC_num_threads)].getInt()) {
-      OMPClause *num_threads_clause;
-      if (unsigned target_thread_limit =
+      OMPClause *NTClause = nullptr;
+      if (unsigned targetTL =
               Actions.getCurScope()->getParent()->getParentThreadLimit()) {
-        llvm::APInt TL_val = llvm::APInt(/*numBits*/ 32, target_thread_limit);
+        llvm::APInt TL_val = llvm::APInt(/*numBits*/ 32, targetTL);
         IntegerLiteral *TL = IntegerLiteral::Create(
             Actions.getASTContext(), TL_val,
             Actions.getASTContext().getIntTypeForBitwidth(32, /*Signed=*/0),
             Loc);
-        num_threads_clause =
-            Actions.ActOnOpenMPNumThreadsClause(TL, Loc, Loc, Loc);
+        NTClause = Actions.ActOnOpenMPNumThreadsClause(TL, Loc, Loc, Loc);
       }
       FirstClauses[unsigned(OMPC_num_threads)].setInt(true);
-      if (num_threads_clause) {
-        FirstClauses[unsigned(OMPC_num_threads)].setPointer(num_threads_clause);
-        Clauses.push_back(num_threads_clause);
+      if (NTClause) {
+        FirstClauses[unsigned(OMPC_num_threads)].setPointer(NTClause);
+        Clauses.push_back(NTClause);
       }
     }
 

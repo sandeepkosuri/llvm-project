@@ -3365,6 +3365,15 @@ private:
       const llvm::function_ref<void(CXXScopeSpec &, DeclarationNameInfo)> &
           Callback,
       bool AllowScopeSpecifier);
+  /// Edits the num_threads clause provided
+  ///
+  /// \param DKind Kind of current directive.
+  /// \param CKind Kind of current clause.
+  /// \param ThreadLimitClause thread_limit clause which needs to be edited.
+  ///
+  OMPClause *editNumThreadsClause(OpenMPDirectiveKind DKind,
+                                  OpenMPClauseKind CKind,
+                                  OMPClause *ThreadLimitClause);
   /// Parses declarative or executable directive.
   ///
   /// \param StmtCtx The context in which we're parsing the directive.
