@@ -236,7 +236,7 @@ private:
 
   void setFlags(Scope *Parent, unsigned F);
 
-  unsigned TargetThreadLimit = 0;
+  clang::Expr *TargetThreadLimit = nullptr;
 
 public:
   Scope(Scope *Parent, unsigned ScopeFlags, DiagnosticsEngine &Diag)
@@ -245,14 +245,14 @@ public:
   }
 
   /// Set the current scope's thread_limit
-  void setTargetThreadLimit(unsigned TL) { TargetThreadLimit = TL; }
+  void setTargetThreadLimit(Expr *TL) { TargetThreadLimit = TL; }
 
   /// Get the thread_limit for this scope
-  unsigned getThreadLimit() { return TargetThreadLimit; }
+  Expr *getThreadLimit() { return TargetThreadLimit; }
 
   /// Get parent target scope's thread_limit, if exists
-  unsigned getParentThreadLimit() {
-    return AnyParent ? AnyParent->getThreadLimit() : 0;
+  Expr *getParentThreadLimit() {
+    return AnyParent ? AnyParent->getThreadLimit() : nullptr;
   }
 
   /// getFlags - Return the flags for this scope.
