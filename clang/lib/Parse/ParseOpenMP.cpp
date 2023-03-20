@@ -2864,12 +2864,34 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
         ConsumeToken();
     }
 
+    // [1: target thread_limit]
+    // Should emit 'target teams' in the case of 'target' with thread_limit clause
+    bool target_has_thread_limit = false;
+    if(DKind == OMPD_target){
+      for (int i=0; GetLookAheadToken(i).isNot(tok::annot_pragma_openmp_end); i++){
+        OpenMPClauseKind CKind = Tok.isAnnotation()
+                                   ? OMPC_unknown
+                                   : getOpenMPClauseKind(PP.getSpelling(Tok));
+        if(CKind == OMPC_thread_limit) {
+          target_has_thread_limit = true;
+          break;
+        }
+      }
+
+      if(target_has_thread_limit)
+        DKind = OMPD_target_teams;
+    }
+
     if (isOpenMPLoopDirective(DKind))
       ScopeFlags |= Scope::OpenMPLoopDirectiveScope;
     if (isOpenMPSimdDirective(DKind))
       ScopeFlags |= Scope::OpenMPSimdDirectiveScope;
     ParseScope OMPDirectiveScope(this, ScopeFlags);
     Actions.StartOpenMPDSABlock(DKind, DirName, Actions.getCurScope(), Loc);
+
+    // [2: target thread_limit]
+    // Should parse the clauses based on original directive
+    DKind = target_has_thread_limit ? OMPD_target : DKind;
 
     while (Tok.isNot(tok::annot_pragma_openmp_end)) {
       // If we are parsing for a directive within a metadirective, the directive
@@ -2923,6 +2945,10 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
     // Consume final annot_pragma_openmp_end.
     ConsumeAnnotationToken();
 
+    // [3: target thread_limit]
+    // Continue to emit 'target_teams' in the case of 'target' with 'thread_limit' clause
+    DKind = target_has_thread_limit ? OMPD_target_teams : DKind;
+
     // OpenMP [2.13.8, ordered Construct, Syntax]
     // If the depend clause is specified, the ordered construct is a stand-alone
     // directive.
@@ -2966,6 +2992,11 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
                                                   /*isStmtExpr=*/false));
       AssociatedStmt = Actions.ActOnOpenMPRegionEnd(AssociatedStmt, Clauses);
     }
+
+    // [4: target thread_limit]
+    // Need the sema analysis of 'target', so revert back the DKind
+    DKind = target_has_thread_limit ? OMPD_target : DKind;
+
     Directive = Actions.ActOnOpenMPExecutableDirective(
         DKind, DirName, CancelRegion, Clauses, AssociatedStmt.get(), Loc,
         EndLoc);
