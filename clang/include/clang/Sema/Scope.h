@@ -236,23 +236,10 @@ private:
 
   void setFlags(Scope *Parent, unsigned F);
 
-  clang::Expr *TargetThreadLimit = nullptr;
-
 public:
   Scope(Scope *Parent, unsigned ScopeFlags, DiagnosticsEngine &Diag)
       : ErrorTrap(Diag) {
     Init(Parent, ScopeFlags);
-  }
-
-  /// Set the current scope's thread_limit
-  void setTargetThreadLimit(Expr *TL) { TargetThreadLimit = TL; }
-
-  /// Get the thread_limit for this scope
-  Expr *getThreadLimit() { return TargetThreadLimit; }
-
-  /// Get parent target scope's thread_limit, if exists
-  Expr *getParentThreadLimit() {
-    return AnyParent ? AnyParent->getThreadLimit() : nullptr;
   }
 
   /// getFlags - Return the flags for this scope.

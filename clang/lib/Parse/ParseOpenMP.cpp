@@ -2909,16 +2909,6 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
           DKind, CKind, !FirstClauses[unsigned(CKind)].getInt());
       FirstClauses[unsigned(CKind)].setInt(true);
       if (Clause) {
-        // in the case of target directive, set the thread_limit for this scope
-        if (DKind == OMPD_target && CKind == OMPC_thread_limit) {
-          OMPThreadLimitClause *TLClause =
-              dyn_cast<OMPThreadLimitClause>(Clause);
-          if (TLClause) {
-            Expr *TL = TLClause->getThreadLimit();
-            if (TL)
-              Actions.getCurScope()->setTargetThreadLimit(TL);
-          }
-        }
         FirstClauses[unsigned(CKind)].setPointer(Clause);
         Clauses.push_back(Clause);
       }
@@ -2928,23 +2918,6 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
         ConsumeToken();
       Actions.EndOpenMPClause();
     }
-
-    // Manually add num_threads clause if parallel directive doesn't have one in
-    // 'target thread_limit' scope
-    if (clang::isOpenMPParallelDirective(DKind) &&
-        !FirstClauses[unsigned(OMPC_num_threads)].getInt()) {
-      OMPClause *NT = nullptr;
-      if (Expr *TL =
-              Actions.getCurScope()->getParent()->getParentThreadLimit()) {
-        NT = Actions.ActOnOpenMPNumThreadsClause(TL, Loc, Loc, Loc);
-      }
-      if (NT) {
-        FirstClauses[unsigned(OMPC_num_threads)].setInt(true);
-        FirstClauses[unsigned(OMPC_num_threads)].setPointer(NT);
-        Clauses.push_back(NT);
-      }
-    }
-
     // End location of the directive.
     EndLoc = Tok.getLocation();
     // Consume final annot_pragma_openmp_end.
@@ -2996,12 +2969,6 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
     Directive = Actions.ActOnOpenMPExecutableDirective(
         DKind, DirName, CancelRegion, Clauses, AssociatedStmt.get(), Loc,
         EndLoc);
-
-    // unset the target's thread_limit for this scope
-    if (DKind == OMPD_target &&
-        FirstClauses[unsigned(OMPC_thread_limit)].getInt()) {
-      Actions.getCurScope()->setTargetThreadLimit(0);
-    }
 
     // Exit scope.
     Actions.EndOpenMPDSABlock(Directive.get());

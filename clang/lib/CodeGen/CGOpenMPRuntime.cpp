@@ -9859,8 +9859,16 @@ void CGOpenMPRuntime::emitTargetCall(
         CapturedVars.clear();
         CGF.GenerateOpenMPCapturedVars(CS, CapturedVars);
       }
-      if (D.getDirectiveKind() == OMPD_target && D.getSingleClause<OMPThreadLimitClause>())
+      if (D.getDirectiveKind() == OMPD_target && D.getSingleClause<OMPThreadLimitClause>()) {
+        const auto *TL = D.getSingleClause<OMPThreadLimitClause>();
+        if (TL) {
+          const Expr *NumTeams = nullptr;
+          const Expr *ThreadLimit = TL ? TL->getThreadLimit() : nullptr;
+
+          emitNumTeamsClause(CGF, NumTeams, ThreadLimit, D.getBeginLoc());
+        }
         emitTeamsCall(CGF, D, D.getBeginLoc(), OutlinedFn, CapturedVars);
+      }
       else
         emitOutlinedFunctionCall(CGF, D.getBeginLoc(), OutlinedFn, CapturedVars);
     }
