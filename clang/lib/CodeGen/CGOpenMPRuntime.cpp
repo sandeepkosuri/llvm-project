@@ -9859,7 +9859,10 @@ void CGOpenMPRuntime::emitTargetCall(
         CapturedVars.clear();
         CGF.GenerateOpenMPCapturedVars(CS, CapturedVars);
       }
-      emitOutlinedFunctionCall(CGF, D.getBeginLoc(), OutlinedFn, CapturedVars);
+      if (D.getDirectiveKind() == OMPD_target && D.getSingleClause<OMPThreadLimitClause>())
+        emitTeamsCall(CGF, D, D.getBeginLoc(), OutlinedFn, CapturedVars);
+      else
+        emitOutlinedFunctionCall(CGF, D.getBeginLoc(), OutlinedFn, CapturedVars);
     }
   };
   // Fill up the pointer arrays and transfer execution to the device.

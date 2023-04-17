@@ -6610,25 +6610,7 @@ static void emitCommonOMPTargetDirective(CodeGenFunction &CGF,
     }
     return nullptr;
   };
-  if (S.getDirectiveKind() == OMPD_target && S.getSingleClause<OMPThreadLimitClause>()) {
-    const auto *TL = S.getSingleClause<OMPThreadLimitClause>();
-    if (TL) {
-      const Expr *NumTeams = nullptr;
-      const Expr *ThreadLimit = TL ? TL->getThreadLimit() : nullptr;
-
-      CGF.CGM.getOpenMPRuntime().emitNumTeamsClause(CGF, NumTeams, ThreadLimit,
-                                                    S.getBeginLoc());
-    }
-
-    const CapturedStmt *CS = S.getCapturedStmt(OMPD_task);
-    // OMPTeamsScope Scope(CGF, S);
-    llvm::SmallVector<llvm::Value *, 16> CapturedVars;
-    CGF.GenerateOpenMPCapturedVars(*CS, CapturedVars);
-    CGF.CGM.getOpenMPRuntime().emitTeamsCall(CGF, S, S.getBeginLoc(), Fn,
-                                            CapturedVars);
-  }
-  else
-    CGM.getOpenMPRuntime().emitTargetCall(CGF, S, Fn, FnID, IfCond, Device,
+  CGM.getOpenMPRuntime().emitTargetCall(CGF, S, Fn, FnID, IfCond, Device,
                                         SizeEmitter);
 }
 
