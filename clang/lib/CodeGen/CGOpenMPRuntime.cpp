@@ -9837,7 +9837,8 @@ void CGOpenMPRuntime::emitTargetCall(
 
   const bool RequiresOuterTask = D.hasClausesOfKind<OMPDependClause>() ||
                                  D.hasClausesOfKind<OMPNowaitClause>() ||
-                                 D.hasClausesOfKind<OMPInReductionClause>();
+                                 D.hasClausesOfKind<OMPInReductionClause>() ||
+                                 D.hasClausesOfKind<OMPThreadLimitClause>();
   llvm::SmallVector<llvm::Value *, 16> CapturedVars;
   const CapturedStmt &CS = *D.getCapturedStmt(OMPD_target);
   auto &&ArgsCodegen = [&CS, &CapturedVars](CodeGenFunction &CGF,
@@ -9859,18 +9860,7 @@ void CGOpenMPRuntime::emitTargetCall(
         CapturedVars.clear();
         CGF.GenerateOpenMPCapturedVars(CS, CapturedVars);
       }
-      if (D.getDirectiveKind() == OMPD_target && D.getSingleClause<OMPThreadLimitClause>()) {
-        const auto *TL = D.getSingleClause<OMPThreadLimitClause>();
-        if (TL) {
-          const Expr *NumTeams = nullptr;
-          const Expr *ThreadLimit = TL ? TL->getThreadLimit() : nullptr;
-
-          emitNumTeamsClause(CGF, NumTeams, ThreadLimit, D.getBeginLoc());
-        }
-        emitTeamsCall(CGF, D, D.getBeginLoc(), OutlinedFn, CapturedVars);
-      }
-      else
-        emitOutlinedFunctionCall(CGF, D.getBeginLoc(), OutlinedFn, CapturedVars);
+      emitOutlinedFunctionCall(CGF, D.getBeginLoc(), OutlinedFn, CapturedVars);
     }
   };
   // Fill up the pointer arrays and transfer execution to the device.
@@ -10662,6 +10652,24 @@ void CGOpenMPRuntime::emitNumTeamsClause(CodeGenFunction &CGF,
   CGF.EmitRuntimeCall(OMPBuilder.getOrCreateRuntimeFunction(
                           CGM.getModule(), OMPRTL___kmpc_push_num_teams),
                       PushNumTeamsArgs);
+}
+
+void CGOpenMPRuntime::emitThreadLimitClause(CodeGenFunction &CGF,
+                                         const Expr *ThreadLimit,
+                                         SourceLocation Loc) {
+  llvm::Value *RTLoc = emitUpdateLocation(CGF, Loc);
+  llvm::Value *ThreadLimitVal =
+        ThreadLimit
+            ? CGF.Builder.CreateIntCast(CGF.EmitScalarExpr(ThreadLimit),
+                                        CGF.CGM.Int32Ty, /* isSigned = */ true)
+            : CGF.Builder.getInt32(0);
+
+    // Build call __kmpc_thread_limit(&loc, global_tid, thread_limit)
+    llvm::Value *ThreadLimitArgs[] = {RTLoc, getThreadID(CGF, Loc),
+                                      ThreadLimitVal};
+    CGF.EmitRuntimeCall(OMPBuilder.getOrCreateRuntimeFunction(
+                            CGM.getModule(), OMPRTL___kmpc_set_thread_limit),
+                        ThreadLimitArgs);
 }
 
 void CGOpenMPRuntime::emitTargetDataCalls(
