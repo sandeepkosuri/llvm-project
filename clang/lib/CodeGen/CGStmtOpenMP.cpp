@@ -5119,13 +5119,6 @@ void CodeGenFunction::EmitOMPTargetTaskBasedDirective(
   IntegerLiteral IfCond(getContext(), TrueOrFalse,
                         getContext().getIntTypeForBitwidth(32, /*Signed=*/0),
                         SourceLocation());
-  if (S.getDirectiveKind() == OMPD_target && S.getSingleClause<OMPThreadLimitClause>()) {
-    const auto *TL = S.getSingleClause<OMPThreadLimitClause>();
-    if (TL) {
-      const Expr *ThreadLimit = TL ? TL->getThreadLimit() : nullptr;
-      CGM.getOpenMPRuntime().emitThreadLimitClause(*this, ThreadLimit, S.getBeginLoc());
-    }
-  }
   CGM.getOpenMPRuntime().emitTaskCall(*this, S.getBeginLoc(), S, OutlinedFn,
                                       SharedsTy, CapturedStruct, &IfCond, Data);
 }

@@ -1859,6 +1859,7 @@ int __kmp_fork_call(ident_t *loc, int gtid,
   int nthreads;
   int master_active;
   int master_set_numthreads;
+  int task_thread_limit = 0;
   int level;
   int active_level;
   int teams_level;
@@ -1897,6 +1898,7 @@ int __kmp_fork_call(ident_t *loc, int gtid,
     root = master_th->th.th_root;
     master_active = root->r.r_active;
     master_set_numthreads = master_th->th.th_set_nproc;
+    task_thread_limit = master_th->th.th_current_task->td_icvs.thread_limit;
 
 #if OMPT_SUPPORT
     ompt_data_t ompt_parallel_data = ompt_data_none;
@@ -1987,6 +1989,11 @@ int __kmp_fork_call(ident_t *loc, int gtid,
                      ? master_set_numthreads
                      // TODO: get nproc directly from current task
                      : get__nproc_2(parent_team, master_tid);
+      // Check if there is a thread_limit set for the enclosing task
+      if (task_thread_limit > 0)
+        nthreads = task_thread_limit < nthreads
+                     ? task_thread_limit
+                     : nthreads;
       // Check if we need to take forkjoin lock? (no need for serialized
       // parallel out of teams construct).
       if (nthreads > 1) {
