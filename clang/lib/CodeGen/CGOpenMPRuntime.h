@@ -1437,7 +1437,8 @@ public:
   /// thread_limit clause on target directive
   /// \param ThreadLimit An integer expression of threads.
   virtual void emitThreadLimitClause(CodeGenFunction &CGF,
-                                  const Expr *ThreadLimit, SourceLocation Loc);
+                                     const Expr *ThreadLimit,
+                                     SourceLocation Loc);
 
   /// Struct that keeps all the relevant information that should be kept
   /// throughout a 'target data' region.

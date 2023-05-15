@@ -1989,9 +1989,8 @@ int __kmp_fork_call(ident_t *loc, int gtid,
                      ? master_set_numthreads
                      // TODO: get nproc directly from current task
                      : get__nproc_2(parent_team, master_tid);
-      // Check if there is a thread_limit set for the enclosing task
-      if (task_thread_limit > 0)
-        nthreads = task_thread_limit < nthreads
+      // Check if there is a thread_limit set for the current task
+      nthreads = task_thread_limit > 0 && task_thread_limit < nthreads
                      ? task_thread_limit
                      : nthreads;
       // Check if we need to take forkjoin lock? (no need for serialized

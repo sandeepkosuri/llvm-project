@@ -5110,6 +5110,13 @@ void CodeGenFunction::EmitOMPTargetTaskBasedDirective(
 
     Action.Enter(CGF);
     OMPLexicalScope LexScope(CGF, S, OMPD_task, /*EmitPreInitStmt=*/false);
+    if (S.getDirectiveKind() == OMPD_target &&
+            S.getSingleClause<OMPThreadLimitClause>();
+        const auto *TL = S.getSingleClause<OMPThreadLimitClause>()) {
+      const Expr *ThreadLimit = TL ? TL->getThreadLimit() : nullptr;
+      CGF.CGM.getOpenMPRuntime().emitThreadLimitClause(CGF, ThreadLimit,
+                                                       S.getBeginLoc());
+    }
     BodyGen(CGF);
   };
   llvm::Function *OutlinedFn = CGM.getOpenMPRuntime().emitTaskOutlinedFunction(

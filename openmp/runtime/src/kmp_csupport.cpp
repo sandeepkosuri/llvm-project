@@ -385,16 +385,18 @@ void __kmpc_push_num_teams(ident_t *loc, kmp_int32 global_tid,
 @ingroup PARALLEL
 @param loc source location information
 @param global_tid global thread number
-@param thread_limit limitis number of threads for the current task
+@param thread_limit limit on number of threads which can be created within the
+current task
 
 Set the thread_limit for the current task
 This call is there to support `thread_limit` clause on the `target` construct
 */
 void __kmpc_set_thread_limit(ident_t *loc, kmp_int32 global_tid,
-                           kmp_int32 thread_limit) {
+                             kmp_int32 thread_limit) {
   __kmp_assert_valid_gtid(global_tid);
-  kmp_info_t * thread = __kmp_threads[global_tid];
-  thread->th.th_current_task->td_icvs.thread_limit = thread_limit;
+  kmp_info_t *thread = __kmp_threads[global_tid];
+  if (thread_limit > 0)
+    thread->th.th_current_task->td_icvs.thread_limit = thread_limit;
 }
 
 /*!

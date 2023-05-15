@@ -4160,7 +4160,7 @@ KMP_EXPORT void __kmpc_push_num_teams(ident_t *loc, kmp_int32 global_tid,
                                       kmp_int32 num_teams,
                                       kmp_int32 num_threads);
 KMP_EXPORT void __kmpc_set_thread_limit(ident_t *loc, kmp_int32 global_tid,
-                                    kmp_int32 thread_limit);
+                                        kmp_int32 thread_limit);
 /* Function for OpenMP 5.1 num_teams clause */
 KMP_EXPORT void __kmpc_push_num_teams_51(ident_t *loc, kmp_int32 global_tid,
                                          kmp_int32 num_teams_lb,
