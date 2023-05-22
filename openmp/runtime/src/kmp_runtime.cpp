@@ -1898,7 +1898,8 @@ int __kmp_fork_call(ident_t *loc, int gtid,
     root = master_th->th.th_root;
     master_active = root->r.r_active;
     master_set_numthreads = master_th->th.th_set_nproc;
-    task_thread_limit = master_th->th.th_current_task->td_icvs.thread_limit;
+    task_thread_limit =
+        master_th->th.th_current_task->td_icvs.task_thread_limit;
 
 #if OMPT_SUPPORT
     ompt_data_t ompt_parallel_data = ompt_data_none;
@@ -3284,6 +3285,8 @@ static kmp_internal_control_t __kmp_get_global_icvs(void) {
     // next parallel region (per thread)
     // (use a max ub on value if __kmp_parallel_initialize not called yet)
     __kmp_cg_max_nth, // int thread_limit;
+    __kmp_task_max_nth, // int task_thread_limit; // to set the thread_limit
+    // on task. This is used in the case of target thread_limit
     __kmp_dflt_max_active_levels, // int max_active_levels; //internal control
     // for max_active_levels
     r_sched, // kmp_r_sched_t sched; //internal control for runtime schedule

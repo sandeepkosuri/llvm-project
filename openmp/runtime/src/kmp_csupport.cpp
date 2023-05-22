@@ -396,7 +396,7 @@ void __kmpc_set_thread_limit(ident_t *loc, kmp_int32 global_tid,
   __kmp_assert_valid_gtid(global_tid);
   kmp_info_t *thread = __kmp_threads[global_tid];
   if (thread_limit > 0)
-    thread->th.th_current_task->td_icvs.thread_limit = thread_limit;
+    thread->th.th_current_task->td_icvs.task_thread_limit = thread_limit;
 }
 
 /*!
