@@ -9839,7 +9839,8 @@ void CGOpenMPRuntime::emitTargetCall(
                                  D.hasClausesOfKind<OMPNowaitClause>() ||
                                  D.hasClausesOfKind<OMPInReductionClause>() ||
                                  (D.getDirectiveKind() == OMPD_target &&
-                                  D.hasClausesOfKind<OMPThreadLimitClause>());
+                                  D.hasClausesOfKind<OMPThreadLimitClause>() &&
+                                  CGM.getLangOpts().OpenMP >= 51);
   llvm::SmallVector<llvm::Value *, 16> CapturedVars;
   const CapturedStmt &CS = *D.getCapturedStmt(OMPD_target);
   auto &&ArgsCodegen = [&CS, &CapturedVars](CodeGenFunction &CGF,

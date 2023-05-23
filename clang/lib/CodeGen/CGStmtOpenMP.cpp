@@ -5110,7 +5110,8 @@ void CodeGenFunction::EmitOMPTargetTaskBasedDirective(
 
     Action.Enter(CGF);
     OMPLexicalScope LexScope(CGF, S, OMPD_task, /*EmitPreInitStmt=*/false);
-    if (S.getDirectiveKind() == OMPD_target &&
+    if (CGF.CGM.getLangOpts().OpenMP >= 51 &&
+            S.getDirectiveKind() == OMPD_target &&
             S.getSingleClause<OMPThreadLimitClause>();
         const auto *TL = S.getSingleClause<OMPThreadLimitClause>()) {
       const Expr *ThreadLimit = TL ? TL->getThreadLimit() : nullptr;
