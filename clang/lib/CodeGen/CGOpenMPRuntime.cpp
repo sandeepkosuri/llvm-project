@@ -10666,7 +10666,7 @@ void CGOpenMPRuntime::emitThreadLimitClause(CodeGenFunction &CGF,
                                       CGF.CGM.Int32Ty, /* isSigned = */ true)
           : CGF.Builder.getInt32(0);
 
-  // Build call __kmpc_thread_limit(&loc, global_tid, thread_limit)
+  // Build call __kmpc_set_thread_limit(&loc, global_tid, thread_limit)
   llvm::Value *ThreadLimitArgs[] = {RTLoc, getThreadID(CGF, Loc),
                                     ThreadLimitVal};
   CGF.EmitRuntimeCall(OMPBuilder.getOrCreateRuntimeFunction(
