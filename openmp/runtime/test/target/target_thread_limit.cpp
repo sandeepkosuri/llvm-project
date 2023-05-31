@@ -1,0 +1,71 @@
+// RUN: %libomp-cxx-compile -fopenmp-version=51
+// RUN: %libomp-run | FileCheck %s --check-prefix OMP51
+
+#include <stdio.h>
+#include <omp.h>
+
+void foo() {
+#pragma omp parallel num_threads(10)
+  { printf("\ntarget: foo(): parallel num_threads(10)"); }
+}
+
+int main(void) {
+#pragma omp target thread_limit(4)
+  {
+
+// check whether thread_limit is honoured
+#pragma omp parallel
+    { printf("\ntarget: parallel"); }
+// OMP51: target: parallel
+// OMP51: target: parallel
+// OMP51: target: parallel
+// OMP51: target: parallel
+
+// check whether num_threads is honoured
+#pragma omp parallel num_threads(2)
+    { printf("\ntarget: parallel num_threads(2)"); }
+// OMP51: target: parallel num_threads(2)
+// OMP51: target: parallel num_threads(2)
+
+// check whether thread_limit is honoured when there is a conflicting
+// num_threads
+#pragma omp parallel num_threads(10)
+    { printf("\ntarget: parallel num_threads(10)"); }
+    // OMP51: target: parallel num_threads(10)
+    // OMP51: target: parallel num_threads(10)
+    // OMP51: target: parallel num_threads(10)
+    // OMP51: target: parallel num_threads(10)
+
+    // check whether threads are limited across functions
+    foo();
+    // OMP51: target: foo(): parallel num_threads(10)
+    // OMP51: target: foo(): parallel num_threads(10)
+    // OMP51: target: foo(): parallel num_threads(10)
+    // OMP51: target: foo(): parallel num_threads(10)
+  }
+
+// checking consecutive target regions with different thread_limits
+#pragma omp target thread_limit(3)
+  {
+#pragma omp parallel
+    { printf("\nsecond target: parallel"); }
+    // OMP51: second target: parallel
+    // OMP51: second target: parallel
+    // OMP51: second target: parallel
+  }
+
+// confirm that thread_limit's effects are limited to target region
+#pragma omp parallel num_threads(10)
+  { printf("\nmain: parallel num_threads(10)"); }
+  // OMP51: main: parallel num_threads(10)
+  // OMP51: main: parallel num_threads(10)
+  // OMP51: main: parallel num_threads(10)
+  // OMP51: main: parallel num_threads(10)
+  // OMP51: main: parallel num_threads(10)
+  // OMP51: main: parallel num_threads(10)
+  // OMP51: main: parallel num_threads(10)
+  // OMP51: main: parallel num_threads(10)
+  // OMP51: main: parallel num_threads(10)
+  // OMP51: main: parallel num_threads(10)
+  return 0;
+}
