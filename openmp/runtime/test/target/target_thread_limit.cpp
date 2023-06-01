@@ -10,9 +10,15 @@ void foo() {
 }
 
 int main(void) {
-#pragma omp target thread_limit(4)
-  {
 
+  int tl = 4;
+  printf("\nmain: thread_limit = %d", omp_get_thread_limit());
+  // OMP51: main: thread_limit = {{[0-9]+}}
+
+#pragma omp target thread_limit(tl)
+  {
+    printf("\ntarget: thread_limit = %d", omp_get_thread_limit());
+// OMP51: target: thread_limit = 4
 // check whether thread_limit is honoured
 #pragma omp parallel
     { printf("\ntarget: parallel"); }
@@ -47,6 +53,8 @@ int main(void) {
 // checking consecutive target regions with different thread_limits
 #pragma omp target thread_limit(3)
   {
+    printf("\nsecond target: thread_limit = %d", omp_get_thread_limit());
+// OMP51: second target: thread_limit = 3
 #pragma omp parallel
     { printf("\nsecond target: parallel"); }
     // OMP51: second target: parallel
@@ -55,6 +63,8 @@ int main(void) {
   }
 
 // confirm that thread_limit's effects are limited to target region
+  printf("\nmain: thread_limit = %d", omp_get_thread_limit());
+// OMP51: main: thread_limit = {{[0-9]+}}
 #pragma omp parallel num_threads(10)
   { printf("\nmain: parallel num_threads(10)"); }
   // OMP51: main: parallel num_threads(10)

@@ -5113,12 +5113,13 @@ void CodeGenFunction::EmitOMPTargetTaskBasedDirective(
     if (CGF.CGM.getLangOpts().OpenMP >= 51 &&
         S.getDirectiveKind() == OMPD_target &&
         S.getSingleClause<OMPThreadLimitClause>()) {
+      // Emit __kmpc_set_thread_limit() to set the thread_limit for the task
+      // enclosing this target region. This will indirectly set the thread_limit
+      // for every applicable construct within target region.
       const auto *TL = S.getSingleClause<OMPThreadLimitClause>();
-      if (TL) {
-        const Expr *ThreadLimit = TL ? TL->getThreadLimit() : nullptr;
-        CGF.CGM.getOpenMPRuntime().emitThreadLimitClause(CGF, ThreadLimit,
-                                                         S.getBeginLoc());
-      }
+      const Expr *ThreadLimit = TL ? TL->getThreadLimit() : nullptr;
+      CGF.CGM.getOpenMPRuntime().emitThreadLimitClause(CGF, ThreadLimit,
+                                                       S.getBeginLoc());
     }
     BodyGen(CGF);
   };
