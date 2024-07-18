@@ -27,6 +27,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/BinaryFormat/Dwarf.h"
+#include "llvm/Frontend/OpenMP/OMP.h.inc"
 #include "llvm/Frontend/OpenMP/OMPConstants.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/IR/Constants.h"
@@ -2500,6 +2501,14 @@ static void emitCommonSimdLoop(CodeGenFunction &CGF, const OMPLoopDirective &S,
     SimdInitGen(CGF);
 
     BodyCodeGen(CGF);
+    // Emit an implicit barrier, if the loop schedule is reproducible
+    if (const auto *OC = S.getSingleClause<OMPOrderClause>()) {
+      if (S.getDirectiveKind() == OMPD_simd &&
+          OC->getModifier() == OMPC_ORDER_MODIFIER_reproducible) {
+        CGF.CGM.getOpenMPRuntime().emitBarrierCall(CGF, S.getBeginLoc(),
+                                                   S.getDirectiveKind());
+      }
+    }
   };
   auto &&ElseGen = [&BodyCodeGen](CodeGenFunction &CGF, PrePostActionTy &) {
     CodeGenFunction::OMPLocalDeclMapRAII Scope(CGF);
@@ -3380,6 +3389,18 @@ bool CodeGenFunction::EmitOMPWorksharingLoop(
         CGM.getOpenMPRuntime().getDefaultScheduleAndChunk(
             *this, S, ScheduleKind.Schedule, ChunkExpr);
       }
+
+      bool hasReproducibleSchedule = false;
+      if (const auto *OC = S.getSingleClause<OMPOrderClause>()) {
+        if (OC->getModifier() == OMPC_ORDER_MODIFIER_reproducible ||
+            (S.getDirectiveKind() == OMPD_loop &&
+             OC->getModifier() == OMPC_ORDER_MODIFIER_unknown)) {
+          // Force static schedule
+          hasReproducibleSchedule = true;
+          ScheduleKind.Schedule = OMPC_SCHEDULE_static;
+        }
+      }
+
       bool HasChunkSizeOne = false;
       llvm::Value *Chunk = nullptr;
       if (ChunkExpr) {
@@ -3513,6 +3534,13 @@ bool CodeGenFunction::EmitOMPWorksharingLoop(
         return CGF.Builder.CreateIsNotNull(
             CGF.EmitLoadOfScalar(IL, S.getBeginLoc()));
       });
+      // Emit an implicit barrier, if the loop schedule is reproducible
+      // In the absence of nowait and lastprivates, barrier isnt emitted later
+      // so we do it now.
+      if (hasReproducibleSchedule && S.getSingleClause<OMPNowaitClause>() &&
+          !HasLastprivateClause)
+        CGM.getOpenMPRuntime().emitBarrierCall(*this, S.getBeginLoc(),
+                                               S.getDirectiveKind());
     }
     DoacrossCleanupScope.ForceCleanup();
     // We're now done with the loop, so jump to the continuation block.
@@ -5723,6 +5751,14 @@ void CodeGenFunction::EmitOMPDistributeLoop(const OMPLoopDirective &S,
         CGM.getOpenMPRuntime().getDefaultDistScheduleAndChunk(
             *this, S, ScheduleKind, Chunk);
       }
+      bool hasReproducibleSchedule = false;
+      if (const auto *OC = S.getSingleClause<OMPOrderClause>()) {
+        if (OC->getModifier() == OMPC_ORDER_MODIFIER_reproducible) {
+          // Force static schedule
+          hasReproducibleSchedule = true;
+          ScheduleKind = OMPC_DIST_SCHEDULE_static;
+        }
+      }
       const unsigned IVSize = getContext().getTypeSize(IVExpr->getType());
       const bool IVSigned = IVExpr->getType()->hasSignedIntegerRepresentation();
 
@@ -5814,6 +5850,10 @@ void CodeGenFunction::EmitOMPDistributeLoop(const OMPLoopDirective &S,
         EmitBlock(LoopExit.getBlock());
         // Tell the runtime we are done.
         RT.emitForStaticFinish(*this, S.getEndLoc(), OMPD_distribute);
+        // Emit an implicit barrier, if the loop schedule is reproducible
+        if (hasReproducibleSchedule) {
+          RT.emitBarrierCall(*this, S.getBeginLoc(), OMPD_distribute);
+        }
       } else {
         // Emit the outer loop, which requests its work chunk [LB..UB] from
         // runtime and runs the inner loop to process it.
